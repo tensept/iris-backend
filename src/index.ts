@@ -16,6 +16,8 @@ import passport from "passport";
 import { oauthRouter } from "./routes/oauth.ts";
 import cookieParser from "cookie-parser";
 import { dbClient } from "@db/client.js";
+import { uploadRouter } from "./routes/upload.js";
+import { productsRouter } from "./routes/products.js";
 import {
   users,
   products,
@@ -42,7 +44,8 @@ app.use(
 );
 app.use(express.json());
 app.use(cookieParser());
-
+app.use("/files", uploadRouter);
+app.use("/products", productsRouter);
 /* ==================== Auth Router ==================== */
 /* NOTE: คุณมี authRouter อยู่แล้ว ก็สามารถ mount ต่อไปได้
    เช่น app.use("/auth", authRouter) 
