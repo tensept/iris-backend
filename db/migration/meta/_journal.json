@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1758618798723,
+      "tag": "0000_magical_the_phantom",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1759044810771,
+      "tag": "0001_absent_slipstream",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1759075650645,
+      "tag": "0002_zippy_peter_quill",
+      "breakpoints": true
+    }
+  ]
+}
