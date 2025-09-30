@@ -1,0 +1,31 @@
+name: iris-backend
+services:
+  pf-backend:
+    image: node:20-alpine
+    container_name: pf-backend
+    working_dir: /app
+    # ดึง env จากไฟล์ .env ในโฟลเดอร์ backend (JWT, SMTP, OAuth ฯลฯ)
+    env_file:
+      - .env
+    # บังคับ DATABASE_URL ให้ชี้ host เป็น 'postgres' (ชื่อ service DB) ใน network เดียวกัน
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-myuser}:${POSTGRES_PASSWORD:-mypassword}@postgres:5432/${POSTGRES_DB:-irisdb}
+      BACKEND_URL: http://pf-backend:3000
+      FRONTEND_URL: http://pf-frontend:5173
+      PORT: 3000
+      NODE_ENV: development
+    volumes:
+      - .:/app
+      - backend_node_modules:/app/node_modules
+    command: sh -lc "corepack enable && pnpm install && pnpm db:generate || true && pnpm db:push || true && pnpm dev"
+    ports:
+      - "3000:3000"
+    networks:
+      - fs-net
+
+volumes:
+  backend_node_modules:
+
+networks:
+  fs-net:
+    external: true   # ✅ ใช้ network เดียวกับ DB (สร้างด้วยคำสั่งด้านบน)
