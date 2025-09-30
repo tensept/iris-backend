@@ -117,6 +117,31 @@ authRouter.post("/register", async (req, res, next) => {
   }
 });
 
+authRouter.patch("/role/:id", async (req, res, next) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+
+    const updated = await dbClient
+      .update(usersTable)
+      .set({ role: "ADMIN" })
+      .where(eq(usersTable.userID, userId))
+      .returning({
+        id: usersTable.userID,
+        name: usersTable.name,
+        email: usersTable.email,
+        role: usersTable.role,
+      });
+
+    if (updated.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json({ message: "Role updated to ADMIN", user: updated[0] });
+  } catch (err) {
+    next(err);
+  }
+});
+
 /* ============ VERIFY EMAIL ============ */
 authRouter.get("/verify", async (req, res, next) => {
   try {
@@ -177,15 +202,12 @@ authRouter.post("/login", async (req, res, next) => {
       return res.status(400).json({ error: "Invalid credentials" });
     }
 
-    // access token (แนบ name ด้วยเพื่อให้ FE ใช้ตรงกับ OAuth)
-    const payload: JwtPayload = {
-      userId: user.userID,
-      email: user.email!,
-      role: (user.role as "ADMIN" | "CUSTOMER") ?? "CUSTOMER",
-      name: user.name ?? null,
-      avatar: null,
-    };
-    const accessToken = signAccessToken(payload);
+    // สร้าง access token (อายุสั้น)
+    const accessToken = jwt.sign(
+      { userId: user.userID, email: user.email, role: user.role },
+      JWT_SECRET!,
+      { expiresIn: "15m" }
+    );
 
     // refresh token (rotate ทุกครั้ง)
     const refreshToken = crypto.randomBytes(40).toString("hex");

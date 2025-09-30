@@ -28,7 +28,7 @@ async function issueTokensAndRedirect(res: any, user: any, to = "/home") {
       avatar: user.avatar || null, // 👈 แนบ avatar เข้า token ด้วย
     },
     JWT_SECRET,
-    { expiresIn: "15m" }
+    { expiresIn: "1h" }
   );
 
   // refresh token -> เก็บใน DB + cookie
