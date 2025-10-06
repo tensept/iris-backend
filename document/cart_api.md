@@ -1,416 +1,258 @@
-# Shopping Cart API Documentation
+# Cart API Documentation
 
-## Base URL
-```
-/cart
-```
+## Overview
+API สำหรับจัดการตะกร้าสินค้า (Shopping Cart) ของผู้ใช้งาน รองรับการเพิ่ม แก้ไข ลบ และดูรายการสินค้าในตะกร้า
 
----
+**Base URL:** `/cart`
 
-## 📋 API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/cart` | Create a new cart |
-| POST | `/cart/items` | Add item to cart |
-| POST | `/cart/items/get` | Get all cart items |
-| PUT | `/cart/items/:id` | Update cart item quantity |
-| DELETE | `/cart/items/:id` | Delete cart item |
+## Authentication
+ทุก endpoint ต้องการการ authentication ผ่าน token (ผ่าน authMiddleware)
+- ระบบจะดึง `userId` จาก token ที่ส่งมา
+- หากไม่มี authentication จะได้รับ status code `401`
 
 ---
 
-## 1️⃣ Create New Cart
+## Endpoints
 
-### `POST /cart`
+### 1. เพิ่มสินค้าลงตะกร้า (Add Item to Cart)
 
-Creates a new empty cart for a user or session. Returns 409 if cart already exists.
+**POST** `/cart/items`
 
-**Request Body:**
+เพิ่มสินค้าลงในตะกร้า หากยังไม่มีตะกร้าจะสร้างใหม่ให้อัตโนมัติ หากสินค้านั้นมีอยู่แล้วจะเพิ่มจำนวน
+
+#### Request Body
 ```json
 {
-  "userId": 123,           // optional (integer)
-  "sessionId": "guest-xyz" // optional (string)
+  "variant_id": 1,
+  "qty": 2
 }
 ```
 
-**Validation:**
-- Either `userId` OR `sessionId` is required
-- Cannot create duplicate cart for same user/session
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| variant_id | number | Yes | ID ของ product variant |
+| qty | number | Yes | จำนวนที่ต้องการเพิ่ม |
 
-**Success Response (201 Created):**
-```json
-{
-  "message": "Cart created successfully",
-  "cart": {
-    "id": 1,
-    "userID": 123,
-    "sessionId": null,
-    "createdAt": "2025-10-04T10:30:00.000Z",
-    "updatedAt": "2025-10-04T10:30:00.000Z"
-  }
-}
-```
+#### Response
 
-**Error Response (409 Conflict):**
-```json
-{
-  "message": "Cart already exists",
-  "cartId": 1
-}
-```
-
-**Error Response (400 Bad Request):**
-```json
-{
-  "message": "Either userId or sessionId is required"
-}
-```
-
----
-
-## 2️⃣ Add Item to Cart
-
-### `POST /cart/items`
-
-Adds an item to cart. **Automatically creates cart if it doesn't exist.**
-
-**Request Body:**
-```json
-{
-  "userId": 123,              // optional (integer)
-  "sessionId": "guest-xyz",   // optional (string)
-  "variant_id": 456,          // required (integer) - product variant ID
-  "qty": 2,                   // required (integer > 0)
-  "unit_price": 29.99         // required (decimal)
-}
-```
-
-**Validation:**
-- Either `userId` OR `sessionId` is required
-- `variant_id`, `qty`, and `unit_price` are required
-- `qty` must be greater than 0
-
-**Behavior:**
-- If cart doesn't exist → creates new cart automatically
-- Creates new cart item with calculated `lineTotal`
-- `lineTotal` = `qty` × `unit_price` (rounded to 2 decimals)
-
-**Success Response (201 Created):**
+**Success (201 Created)**
 ```json
 {
   "message": "Cart item added successfully",
   "cartItem": {
-    "id": 10,
+    "id": 1,
     "cartId": 1,
-    "variantId": 456,
+    "variantId": 1,
     "qty": 2,
-    "unitPrice": "29.99",
-    "lineTotal": "59.98",
-    "createdAt": "2025-10-04T10:35:00.000Z",
-    "updatedAt": "2025-10-04T10:35:00.000Z"
+    "unitPrice": "299.00",
+    "lineTotal": "598.00",
+    "createdAt": "2025-01-15T10:30:00.000Z",
+    "updatedAt": "2025-01-15T10:30:00.000Z"
   },
   "cartId": 1
 }
 ```
 
-**Error Response (400 Bad Request):**
+หากสินค้ามีอยู่ในตะกร้าแล้ว message จะเป็น:
 ```json
 {
-  "message": "Either userId or sessionId is required"
+  "message": "Cart item quantity updated",
+  "cartItem": { ... },
+  "cartId": 1
 }
 ```
+
+**Error Responses**
+- `400` - Not enough stock (สต็อกไม่เพียงพอ)
+- `401` - User not authenticated
+- `404` - Product variant not found
+
+#### Business Logic
+1. ตรวจสอบ authentication
+2. หาหรือสร้างตะกร้าสำหรับ user (auto-create)
+3. ตรวจสอบสต็อกสินค้า
+4. หากสินค้ามีในตะกร้าแล้ว:
+   - เพิ่ม qty (ไม่ใช่แทนที่)
+   - ตรวจสอบสต็อกกับจำนวนรวมใหม่
+   - คำนวณ lineTotal ใหม่
+5. หากยังไม่มี: สร้าง cart item ใหม่
+6. **ลดสต็อกสินค้าทันที**
 
 ---
 
-## 3️⃣ Get Cart Items
+### 2. ดูรายการสินค้าในตะกร้า (Get Cart Items)
 
-### `POST /cart/items/get`
+**GET** `/cart/items`
 
-Retrieves all items in a cart for a specific user or session.
+ดึงข้อมูลสินค้าทั้งหมดในตะกร้าของ user ปัจจุบัน
 
-**Request Body:**
+#### Request
+ไม่ต้องส่ง parameter (ใช้ userId จาก token)
+
+#### Response
+
+**Success (200 OK)**
 ```json
 {
-  "userId": 123,              // optional (integer)
-  "sessionId": "guest-xyz"    // optional (string)
-}
-```
-
-**Validation:**
-- Either `userId` OR `sessionId` is required
-
-**Behavior:**
-- If cart not found → returns empty array (not 404)
-
-**Success Response (200 OK) - Cart Found:**
-```json
-{
-  "message": "Cart items retrieved successfully",
-  "cartId": 1,
   "cartItems": [
     {
-      "id": 10,
+      "id": 1,
       "cartId": 1,
-      "variantId": 456,
+      "variantId": 1,
       "qty": 2,
-      "unitPrice": "29.99",
-      "lineTotal": "59.98",
-      "createdAt": "2025-10-04T10:35:00.000Z",
-      "updatedAt": "2025-10-04T10:35:00.000Z"
+      "unitPrice": "299.00",
+      "lineTotal": "598.00",
+      "createdAt": "2025-01-15T10:30:00.000Z",
+      "updatedAt": "2025-01-15T10:30:00.000Z"
     },
     {
-      "id": 11,
+      "id": 2,
       "cartId": 1,
-      "variantId": 789,
+      "variantId": 3,
       "qty": 1,
-      "unitPrice": "49.99",
-      "lineTotal": "49.99",
-      "createdAt": "2025-10-04T10:36:00.000Z",
-      "updatedAt": "2025-10-04T10:36:00.000Z"
+      "unitPrice": "499.00",
+      "lineTotal": "499.00",
+      "createdAt": "2025-01-15T11:00:00.000Z",
+      "updatedAt": "2025-01-15T11:00:00.000Z"
     }
   ]
 }
 ```
 
-**Success Response (200 OK) - Cart Not Found:**
+หากยังไม่มีตะกร้า:
 ```json
 {
-  "message": "Cart not found",
   "cartItems": []
 }
 ```
 
-**Error Response (400 Bad Request):**
-```json
-{
-  "message": "Either userId or sessionId is required"
-}
-```
+**Error Responses**
+- `401` - User not authenticated
 
 ---
 
-## 4️⃣ Update Cart Item Quantity
+### 3. แก้ไขจำนวนสินค้าในตะกร้า (Update Cart Item Quantity)
 
-### `PUT /cart/items/:id`
+**PUT** `/cart/items/:id`
 
-Updates the quantity of a specific cart item. **Automatically recalculates `lineTotal`.**
+อัปเดตจำนวนสินค้าในตะกร้า หาก qty = 0 จะลบสินค้าออกจากตะกร้าและคืนสต็อกทั้งหมด
 
-**URL Parameters:**
-- `id` (integer) - Cart item ID
+#### URL Parameters
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| id | number | Cart Item ID |
 
-**Request Body:**
+#### Request Body
 ```json
 {
-  "qty": 5  // required (integer > 0)
+  "qty": 3
 }
 ```
 
-**Validation:**
-- `qty` is required and must be greater than 0
-- To remove an item, use DELETE endpoint instead
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| qty | number | Yes | จำนวนใหม่ที่ต้องการตั้ง (≥ 0) <br>**หมายเหตุ:** เป็นการ SET ค่าใหม่ ไม่ใช่การเพิ่ม/ลด |
 
-**Behavior:**
-- Updates `qty` and recalculates `lineTotal`
-- `lineTotal` = new `qty` × existing `unitPrice`
-- Updates `updatedAt` timestamp
+#### Response
 
-**Success Response (200 OK):**
+**Success (200 OK) - กรณี qty > 0**
 ```json
 {
   "message": "Cart item updated successfully",
-  "cartItem": {
-    "id": 10,
+  "item": {
+    "id": 1,
     "cartId": 1,
-    "variantId": 456,
-    "qty": 5,
-    "unitPrice": "29.99",
-    "lineTotal": "149.95",
-    "createdAt": "2025-10-04T10:35:00.000Z",
-    "updatedAt": "2025-10-04T10:45:00.000Z"
+    "variantId": 1,
+    "qty": 3,
+    "unitPrice": "299.00",
+    "lineTotal": "897.00",
+    "updatedAt": "2025-01-15T12:00:00.000Z"
   }
 }
 ```
 
-**Error Response (404 Not Found):**
+**Success (200 OK) - กรณี qty = 0**
 ```json
 {
-  "message": "Cart item not found"
+  "message": "Cart item removed because qty is 0"
 }
 ```
 
-**Error Response (400 Bad Request):**
+**Error Responses**
+- `400` - Invalid qty value / Missing qty / Not enough stock
+- `401` - User not authenticated
+- `404` - Cart not found / Cart item not found / Product variant not found
+
+#### Business Logic
+1. ตรวจสอบ authentication และ validation
+2. หา cart และ cart item ของ user
+3. คำนวณ `stockChange = newQty - currentQty`
+   - ถ้า stockChange > 0 = ต้องการสินค้าเพิ่ม (ลดสต็อก)
+   - ถ้า stockChange < 0 = ลดจำนวนสินค้า (คืนสต็อก)
+4. ตรวจสอบสต็อกว่าเพียงพอหรือไม่
+5. **หาก qty = 0**:
+   - ลบ item ออกจากตะกร้า
+   - คืนสต็อกทั้งหมด (`existingItem.qty`)
+6. **หาก qty > 0**:
+   - อัปเดต qty และ lineTotal
+   - ปรับสต็อกตาม stockChange
+
+---
+
+### 4. ลบสินค้าออกจากตะกร้า (Delete Cart Item)
+
+**DELETE** `/cart/items/:id`
+
+ลบสินค้าออกจากตะกร้า **และคืนสต็อกสินค้าทั้งหมดกลับคลัง**
+
+#### URL Parameters
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| id | number | Cart Item ID |
+
+#### Response
+
+**Success (200 OK)**
 ```json
 {
-  "message": "qty is required and must be greater than 0"
+  "message": "Cart item deleted successfully and stock restored"
 }
 ```
 
----
+**Error Responses**
+- `401` - User not authenticated
+- `404` - Cart not found / Cart item not found
 
-## 5️⃣ Delete Cart Item
-
-### `DELETE /cart/items/:id`
-
-Removes a specific item from the cart completely.
-
-**URL Parameters:**
-- `id` (integer) - Cart item ID
-
-**Success Response (200 OK):**
-```json
-{
-  "message": "Cart item deleted successfully",
-  "cartItemId": "10"
-}
-```
-
-**Error Response (404 Not Found):**
-```json
-{
-  "message": "Cart item not found"
-}
-```
+#### Business Logic
+1. ตรวจสอบ authentication
+2. หา cart ของ user
+3. หา cart item ที่ต้องการลบ
+4. **คืนสต็อกให้กับ product variant** (`stockQty + existingItem.qty`)
+5. ลบ cart item
 
 ---
 
-## 🔄 Common Usage Flows
+## Data Models
 
-### **Flow 1: Guest User Shopping**
-
-```bash
-# Step 1: Add first item (cart auto-created)
-POST /cart/items
-{
-  "sessionId": "guest-abc123",
-  "variant_id": 101,
-  "qty": 2,
-  "unit_price": 19.99
-}
-# Response: cartId: 1, cartItem created
-
-# Step 2: Add second item
-POST /cart/items
-{
-  "sessionId": "guest-abc123",
-  "variant_id": 102,
-  "qty": 1,
-  "unit_price": 39.99
-}
-# Response: uses same cartId: 1
-
-# Step 3: View cart
-POST /cart/items/get
-{
-  "sessionId": "guest-abc123"
-}
-# Response: 2 items, total value: $79.97
-
-# Step 4: Update quantity
-PUT /cart/items/1
-{
-  "qty": 3
-}
-# Response: lineTotal updated to $59.97
-
-# Step 5: Remove item
-DELETE /cart/items/2
-# Response: item deleted
-```
-
-### **Flow 2: Logged-in User**
-
-```bash
-# Step 1: Create cart explicitly
-POST /cart
-{
-  "userId": 456
-}
-# Response: cart created with id: 5
-
-# Step 2: Add items
-POST /cart/items
-{
-  "userId": 456,
-  "variant_id": 201,
-  "qty": 1,
-  "unit_price": 99.99
-}
-
-# Step 3: Get cart items
-POST /cart/items/get
-{
-  "userId": 456
-}
-
-# Step 4: Update and delete as needed
-PUT /cart/items/15 { "qty": 2 }
-DELETE /cart/items/15
-```
-
----
-
-## 💡 Important Notes
-
-### **Price Handling**
-- All prices use **Decimal.js** for precise calculations
-- Prices stored as **strings with 2 decimal places**: `"29.99"`
-- `lineTotal` is always calculated: `qty × unitPrice`
-
-### **Auto-create Behavior**
-- `POST /cart/items` automatically creates cart if needed
-- No need to call `POST /cart` first (optional)
-
-### **User vs Session**
-- **userId** - For authenticated/logged-in users
-- **sessionId** - For guest/anonymous users
-- Only one is needed per request
-
-### **Cart Item ID**
-- Each cart item has unique `id`
-- Use this `id` for UPDATE and DELETE operations
-- Different from `variantId` (product variant)
-
-### **Empty Cart Handling**
-- `POST /cart/items/get` returns empty array if cart not found
-- Does NOT return 404 error
-- Graceful handling for new users
-
----
-
-## 📊 Status Codes Summary
-
-| Code | Meaning | Used In |
-|------|---------|---------|
-| 200 | OK | GET cart items, UPDATE, DELETE |
-| 201 | Created | POST cart, POST cart items |
-| 400 | Bad Request | Missing required fields, invalid data |
-| 404 | Not Found | Cart item doesn't exist |
-| 409 | Conflict | Cart already exists (POST /cart) |
-
----
-
-## 🗂️ Data Models
-
-### **Cart**
+### Cart
 ```typescript
 {
   id: number;
-  userID: number | null;
-  sessionId: string | null;
+  userID: number;
   createdAt: Date;
   updatedAt: Date;
 }
 ```
 
-### **Cart Item**
+### Cart Item
 ```typescript
 {
   id: number;
   cartId: number;
   variantId: number;
   qty: number;
-  unitPrice: string;      // "29.99"
-  lineTotal: string;      // "59.98"
+  unitPrice: string; // Decimal as string (e.g., "299.00")
+  lineTotal: string; // Decimal as string (e.g., "598.00")
   createdAt: Date;
   updatedAt: Date;
 }
@@ -418,18 +260,105 @@ DELETE /cart/items/15
 
 ---
 
-## 🔧 Technical Details
+## Stock Management (การจัดการสต็อก)
 
-### **Dependencies**
-- `decimal.js` - For precise decimal calculations
-- `drizzle-orm` - Database ORM
-- `express` - Web framework
+### กลไกการจัดการสต็อก
 
-### **Database Tables**
-- `carts` - Stores cart information
-- `cartItems` - Stores individual items in each cart
+| Operation | Action | Stock Behavior |
+|-----------|--------|----------------|
+| **POST** `/cart/items` | เพิ่มสินค้าเข้าตะกร้า | ลดสต็อกทันที (`-qty`) |
+| **PUT** `/cart/items/:id` (เพิ่ม qty) | เปลี่ยนจาก 2 → 5 | ลดสต็อก 3 หน่วย (`-stockChange`) |
+| **PUT** `/cart/items/:id` (ลด qty) | เปลี่ยนจาก 5 → 2 | คืนสต็อก 3 หน่วย (`+stockChange`) |
+| **PUT** `/cart/items/:id` (qty=0) | ตั้งค่าเป็น 0 | คืนสต็อกทั้งหมด + ลบ item |
+| **DELETE** `/cart/items/:id` | ลบสินค้า | **คืนสต็อกทั้งหมด** |
 
-### **Precision**
-- All monetary values rounded to 2 decimal places
-- Uses `Decimal.js` to avoid floating-point errors
-- Example: `new Decimal(2).mul(29.99).toFixed(2)` → `"59.98"`
+### หลักการสำคัญ
+1. **สต็อกถูกสำรองทันทีเมื่อเพิ่มเข้าตะกร้า** - ป้องกันการซื้อเกินสต็อก
+2. **PUT และ DELETE ทั้งคู่คืนสต็อก** - สอดคล้องกัน
+3. **ใช้ Decimal.js** สำหรับการคำนวณราคาเพื่อความแม่นยำ
+
+### สูตรการคำนวณ
+```typescript
+stockChange = newQty - currentQty
+// ถ้า stockChange > 0 → ต้องลดสต็อก
+// ถ้า stockChange < 0 → คืนสต็อก
+
+lineTotal = unitPrice × qty
+newStockQty = currentStockQty - stockChange
+```
+
+---
+
+## Important Notes
+
+### การสร้างตะกร้าอัตโนมัติ (Auto-create Cart)
+- ไม่ต้องมี endpoint สำหรับสร้างตะกร้าแยก
+- ระบบจะสร้างให้อัตโนมัติเมื่อ user เพิ่มสินค้าครั้งแรก
+- 1 user มีได้ 1 cart เท่านั้น
+
+### การตรวจสอบสต็อก
+- ตรวจสอบก่อนทุกครั้งที่มีการเปลี่ยนแปลง qty
+- หาก stock ไม่เพียงพอ จะ return error 400
+- ใช้สต็อกปัจจุบัน + stockChange ในการตรวจสอบ
+
+### ความปลอดภัย (Security)
+- ตรวจสอบว่า cart item เป็นของ user ที่ login อยู่จริง
+- ใช้ `and()` ในการ query เพื่อตรวจสอบทั้ง `id` และ `cartId`
+- ป้องกันการแก้ไข/ลบสินค้าของคนอื่น
+
+### การจัดการข้อผิดพลาด
+- ทุก endpoint ใช้ `try-catch` 
+- ส่งต่อ error ไปยัง error handler middleware ผ่าน `next(err)`
+- Error codes ที่ใช้:
+  - `400` - Bad Request (invalid input, not enough stock)
+  - `401` - Unauthorized (missing or invalid token)
+  - `404` - Not Found (cart, item, or variant not found)
+  - `500` - Internal Server Error (handled by error middleware)
+
+---
+
+## Example Usage Flow
+
+### ตัวอย่างการใช้งานทั่วไป
+
+```javascript
+// 1. เพิ่มสินค้าเข้าตะกร้าครั้งแรก
+POST /cart/items
+Body: { "variant_id": 1, "qty": 2 }
+→ สร้าง cart ใหม่ + เพิ่ม item (สต็อก -2)
+
+// 2. เพิ่มสินค้าตัวเดิมอีก
+POST /cart/items
+Body: { "variant_id": 1, "qty": 1 }
+→ qty กลายเป็น 3 (สต็อก -1)
+
+// 3. ดูตะกร้า
+GET /cart/items
+→ ได้ array ของ cart items ทั้งหมด
+
+// 4. แก้ไขจำนวน (เปลี่ยนจาก 3 เป็น 5)
+PUT /cart/items/1
+Body: { "qty": 5 }
+→ qty = 5 (สต็อก -2)
+
+// 5. ลดจำนวน (เปลี่ยนจาก 5 เป็น 2)
+PUT /cart/items/1
+Body: { "qty": 2 }
+→ qty = 2 (คืนสต็อก +3)
+
+// 6. ลบสินค้า
+DELETE /cart/items/1
+→ ลบ item (คืนสต็อก +2)
+```
+
+---
+
+## Version History
+
+**Current Version:** 1.0  
+**Last Updated:** January 2025
+
+### Changes from Previous Version
+- ✅ DELETE endpoint now restores stock (เพิ่มการคืนสต็อก)
+- ✅ Improved stock validation logic
+- ✅ Better error messages and consistency

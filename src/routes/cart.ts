@@ -289,6 +289,7 @@ cartRouter.delete("/items/:id", async (req, res, next) => {
       return res.status(401).json({ message: "User not authenticated" });
     }
 
+    // หา cart ของ user
     const userCart = await dbClient.query.carts.findFirst({
       where: (carts, { eq }) => eq(carts.userID, userId),
     });
@@ -297,21 +298,38 @@ cartRouter.delete("/items/:id", async (req, res, next) => {
       return res.status(404).json({ message: "Cart not found" });
     }
 
-    const deleted = await dbClient
-      .delete(cartItems)
-      .where(
-        and(eq(cartItems.id, Number(id)), eq(cartItems.cartId, userCart.id))
-      )
-      .returning();
+    // หา cart item ก่อนลบ
+    const existingItem = await dbClient.query.cartItems.findFirst({
+      where: (cartItems, { and, eq }) =>
+        and(eq(cartItems.id, Number(id)), eq(cartItems.cartId, userCart.id)),
+    });
 
-    if (!deleted.length) {
+    if (!existingItem) {
       return res.status(404).json({ message: "Cart item not found" });
     }
 
-    return res.json({ message: "Cart item deleted successfully" });
+    // คืน stock ให้ variant
+    const variant = await dbClient.query.productVariants.findFirst({
+      where: (pv, { eq }) => eq(pv.id, Number(existingItem.variantId)),
+    });
+
+    if (variant) {
+      await dbClient
+        .update(productVariants)
+        .set({ stockQty: variant.stockQty + existingItem.qty })
+        .where(eq(productVariants.id, variant.id));
+    }
+
+    // ลบ cart item
+    await dbClient
+      .delete(cartItems)
+      .where(eq(cartItems.id, existingItem.id));
+
+    return res.json({ message: "Cart item deleted successfully and stock restored" });
   } catch (err) {
     next(err);
   }
 });
+
 
 export { cartRouter };
