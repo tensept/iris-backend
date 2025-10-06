@@ -22,8 +22,6 @@ import {
   users,
   products,
   productVariants,
-  carts,
-  cartItems,
   orders,
   orderItems,
 } from "@db/schema.js";

@@ -1,201 +1,317 @@
 import { Router } from "express";
 import { dbClient } from "../../db/client.ts";
-import { carts, cartItems } from "../../db/schema.ts";
+import { carts, cartItems, productVariants } from "../../db/schema.ts";
+import { eq, and } from "drizzle-orm";
 import { Decimal } from "decimal.js";
-import { eq } from "drizzle-orm";
 
 const cartRouter = Router();
 
-// Use for: add items to cart
-/*
- Step: Find a cart from userId if it doesn't exist, create new
- else create new cart item and use that cartId
+/* 
+===============================
+= CREATE =
+Use for: Add items to cart
+Step:
+1. ดึง userId จาก token (ผ่าน authMiddleware)
+2. Find cart จาก userId ถ้าไม่มีให้สร้างใหม่
+3. Create cart item ใหม่ และผูกกับ cartId นั้น
+===============================
 */
 cartRouter.post("/items", async (req, res, next) => {
   try {
-    const { userId, sessionId, variant_id, qty, unit_price } = req.body;
+    const { variant_id, qty } = req.body;
+    const { user } = req as any;
+    const userId = user?.userId;
 
-    // validate payload
-    if (!userId && !sessionId) {
-      return res.status(400).json({ 
-        message: "Either userId or sessionId is required" 
-      });
+    if (!userId) {
+      return res.status(401).json({ message: "User not authenticated" });
     }
 
-    // find or create a cart
+    // หา cart ของ user
     let existingCart = await dbClient.query.carts.findFirst({
-      where: (carts, { eq }) => {
-        if (userId) {
-          return eq(carts.userID, userId);
-        }
-        return eq(carts.sessionId, sessionId);
-      }
+      where: (carts, { eq }) => eq(carts.userID, userId),
     });
 
-    // ถ้าไม่เจอ cart ให้สร้างใหม่
     if (!existingCart) {
-      const newCart = await dbClient.insert(carts).values({
-        userID: userId || null,
-        sessionId: sessionId || null,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      }).returning(); // returning() จะคืน object ของ cart ใหม่
-
+      const newCart = await dbClient
+        .insert(carts)
+        .values({
+          userID: userId,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning();
       existingCart = newCart[0];
     }
 
     const qtyNum = Number(qty);
-    const unitPriceNum = Number(unit_price);
 
-    // สร้าง cart item ใหม่
-    const newCartItem = await dbClient.insert(cartItems).values({
-        cartId: existingCart.id,
-        variantId: Number(variant_id),
-        qty: qtyNum,
-        unitPrice: new Decimal(unitPriceNum).toFixed(2), // string แบบ 2 decimal
-        lineTotal: new Decimal(qtyNum).mul(unitPriceNum).toFixed(2), // string แบบ 2 decimal
-        createdAt: new Date(),
-        updatedAt: new Date()
-    }).returning();
-
-    // Return 201 Created with the new cart item
-    return res.status(201).json({
-      message: "Cart item added successfully",
-      cartItem: newCartItem[0],
-      cartId: existingCart.id
+    // ดึง variant
+    const variant = await dbClient.query.productVariants.findFirst({
+      where: (pv, { eq }) => eq(pv.id, Number(variant_id)),
     });
 
-  } catch (err) {
-    next(err);
-  }
-});
-
-/* ========== READ ========== */
-// Use for: get all items in cart
-/*
- Step: Find a cart from userId (or sessionId) and get all cart items.
-       If not found, return empty object
-*/
-cartRouter.post("/items/get", async (req, res, next) => {
-  try {
-    const { userId, sessionId } = req.body;
-
-    // validate payload
-    if (!userId && !sessionId) {
-      return res.status(400).json({ 
-        message: "Either userId or sessionId is required" 
-      });
+    if (!variant) {
+      return res.status(404).json({ message: "Product variant not found" });
     }
 
-    // หา cart ก่อน
-    const existingCart = await dbClient.query.carts.findFirst({
-      where: (carts, { eq }) => {
-        if (userId) return eq(carts.userID, userId);
-        return eq(carts.sessionId, sessionId);
+    if (qtyNum > variant.stockQty) {
+      return res.status(400).json({ message: "Not enough stock" });
+    }
+
+    const unitPriceNum = Number(variant.price);
+
+    // หา cart item
+    const existingItem = await dbClient.query.cartItems.findFirst({
+      where: (cartItems, { and, eq }) =>
+        and(
+          eq(cartItems.cartId, existingCart.id),
+          eq(cartItems.variantId, Number(variant_id))
+        ),
+    });
+
+    let cartItem;
+    if (existingItem) {
+      const newQty = existingItem.qty + qtyNum;
+      if (newQty > variant.stockQty) {
+        return res.status(400).json({ message: "Not enough stock" });
       }
-    });
 
-    if (!existingCart) {
-      // ถ้าไม่เจอ cart → return empty object
-      return res.status(200).json({
-        message: "Cart not found",
-        cartItems: [],
-      });
+      const newLineTotal = new Decimal(newQty).mul(unitPriceNum).toFixed(2);
+
+      const updatedItem = await dbClient
+        .update(cartItems)
+        .set({
+          qty: newQty,
+          lineTotal: newLineTotal,
+          updatedAt: new Date(),
+        })
+        .where(eq(cartItems.id, existingItem.id))
+        .returning();
+
+      cartItem = updatedItem[0];
+    } else {
+      const newCartItem = await dbClient
+        .insert(cartItems)
+        .values({
+          cartId: existingCart.id,
+          variantId: Number(variant_id),
+          qty: qtyNum,
+          unitPrice: new Decimal(unitPriceNum).toFixed(2),
+          lineTotal: new Decimal(qtyNum).mul(unitPriceNum).toFixed(2),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning();
+
+      cartItem = newCartItem[0];
     }
 
-    // หา cart items ทั้งหมด
-    const items = await dbClient.query.cartItems.findMany({
-      where: (cartItems, { eq }) => eq(cartItems.cartId, existingCart.id)
-    });
+    // ลด stock_qty
+    await dbClient
+      .update(productVariants)
+      .set({ stockQty: variant.stockQty - qtyNum })
+      .where(eq(productVariants.id, variant.id));
 
-    return res.status(200).json({
-      message: "Cart items retrieved successfully",
+    return res.status(201).json({
+      message: existingItem
+        ? "Cart item quantity updated"
+        : "Cart item added successfully",
+      cartItem,
       cartId: existingCart.id,
-      cartItems: items
     });
-
   } catch (err) {
     next(err);
   }
 });
 
-/* ========== UPDATE ========== */
-// Use for: update items in cart
-/*
- Step: Update by using id to query and can update only qty
+/* 
+===============================
+= READ =
+Use for: Get all cart items for the current user
+Step:
+1. ดึง userId จาก token
+2. Find cart ของ user
+3. Query cart items ทั้งหมดของ cart นั้น
+===============================
+*/
+cartRouter.get("/items", async (req, res, next) => {
+  try {
+    const { user } = req as any;
+    const userId = user?.userId;
+
+    if (!userId) {
+      return res.status(401).json({ message: "User not authenticated" });
+    }
+
+    const userCart = await dbClient.query.carts.findFirst({
+      where: (carts, { eq }) => eq(carts.userID, userId),
+    });
+
+    if (!userCart) {
+      return res.json({ cartItems: [] });
+    }
+
+    const items = await dbClient.query.cartItems.findMany({
+      where: (cartItems, { eq }) => eq(cartItems.cartId, userCart.id),
+    });
+
+    return res.json({ cartItems: items });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* 
+===============================
+= UPDATE =
+Use for: Update qty of specific cart item
+Step:
+1. ดึง userId จาก token
+2. ตรวจสอบว่ามี cart ของ user นั้นไหม
+3. Update qty ของ cart item ที่ตรง id
+===============================
 */
 cartRouter.put("/items/:id", async (req, res, next) => {
   try {
-    const { id } = req.params; // cartItem id
-    const { qty } = req.body;
+    const { id } = req.params;
+    const { user } = req as any;
+    const userId = user?.userId;
 
-    if (!qty || Number(qty) <= 0) {
-      return res.status(400).json({ message: "qty is required and must be greater than 0" });
+    if (!userId) {
+      return res.status(401).json({ message: "User not authenticated" });
     }
 
-    // หา cart item ก่อน
+    if (!req.body || typeof req.body.qty === "undefined") {
+      return res.status(400).json({ message: "Missing qty in request body" });
+    }
+
+    let qtyNum = Number(req.body.qty);
+    if (isNaN(qtyNum) || qtyNum < 0) {
+      return res.status(400).json({ message: "Invalid qty value" });
+    }
+
+    const userCart = await dbClient.query.carts.findFirst({
+      where: (carts, { eq }) => eq(carts.userID, userId),
+    });
+
+    if (!userCart) return res.status(404).json({ message: "Cart not found" });
+
     const existingItem = await dbClient.query.cartItems.findFirst({
-      where: (cartItems, { eq }) => eq(cartItems.id, Number(id))
+      where: (cartItems, { and, eq }) =>
+        and(eq(cartItems.id, Number(id)), eq(cartItems.cartId, userCart.id)),
     });
 
-    if (!existingItem) {
+    if (!existingItem)
       return res.status(404).json({ message: "Cart item not found" });
+
+    // ดึง variant เพื่อเช็ค stock
+    if (existingItem.variantId == null) {
+      return res.status(400).json({ message: "Cart item does not have a valid variantId" });
+    }
+    const variant = await dbClient.query.productVariants.findFirst({
+      where: (pv, { eq }) => eq(pv.id, Number(existingItem.variantId)),
+    });
+
+    if (!variant) {
+      return res.status(404).json({ message: "Product variant not found" });
     }
 
-    const qtyNum = Number(qty);
-    const unitPriceNum = Number(existingItem.unitPrice); // ใช้ unitPrice เดิม
+    const stockChange = qtyNum - existingItem.qty; // + = เพิ่ม qty, - = ลด qty
+    if (stockChange > variant.stockQty) {
+      return res.status(400).json({ message: "Not enough stock" });
+    }
 
-    // อัปเดต qty และ lineTotal ด้วย Decimal.js
-    const updatedItem = await dbClient.update(cartItems)
-      .set({
-        qty: qtyNum,
-        lineTotal: new Decimal(qtyNum).mul(unitPriceNum).toFixed(2), // string แบบ 2 decimal
-        updatedAt: new Date()
-      })
-      .where(eq(cartItems.id, Number(id)))
-      .returning();
+    let resultItem;
 
-    return res.status(200).json({
+    if (qtyNum === 0) {
+      // ลบ item
+      await dbClient.delete(cartItems).where(eq(cartItems.id, existingItem.id));
+
+      // คืน stock
+      await dbClient
+        .update(productVariants)
+        .set({ stockQty: variant.stockQty + existingItem.qty })
+        .where(eq(productVariants.id, variant.id));
+
+      return res.json({ message: "Cart item removed because qty is 0" });
+    } else {
+      // คำนวณ lineTotal ใหม่
+      const lineTotal = new Decimal(existingItem.unitPrice)
+        .mul(qtyNum)
+        .toFixed(2);
+
+      // update cart item
+      const updatedItem = await dbClient
+        .update(cartItems)
+        .set({
+          qty: qtyNum,
+          lineTotal,
+          updatedAt: new Date(),
+        })
+        .where(eq(cartItems.id, existingItem.id))
+        .returning();
+
+      // update stock
+      await dbClient
+        .update(productVariants)
+        .set({ stockQty: variant.stockQty - stockChange })
+        .where(eq(productVariants.id, variant.id));
+
+      resultItem = updatedItem[0];
+    }
+
+    return res.json({
       message: "Cart item updated successfully",
-      cartItem: updatedItem[0]
+      item: resultItem,
     });
-
   } catch (err) {
     next(err);
   }
 });
 
-/* ========== DELETE ========== */
-// Use for: delete item from cart by id
-/*
- Step: Query by using id and delete that data
+/* 
+===============================
+= DELETE =
+Use for: Delete specific cart item
+Step:
+1. ดึง userId จาก token
+2. ตรวจสอบว่า cart นั้นเป็นของ user คนนี้จริงไหม
+3. Delete cart item ที่ตรง id
+===============================
 */
 cartRouter.delete("/items/:id", async (req, res, next) => {
   try {
-    const { id } = req.params; // cartItem id
+    const { id } = req.params;
+    const { user } = req as any;
+    const userId = user?.userId;
 
-    // ตรวจสอบว่า cart item มีอยู่ไหม
-    const existingItem = await dbClient.query.cartItems.findFirst({
-      where: (cartItems, { eq }) => eq(cartItems.id, Number(id))
+    if (!userId) {
+      return res.status(401).json({ message: "User not authenticated" });
+    }
+
+    const userCart = await dbClient.query.carts.findFirst({
+      where: (carts, { eq }) => eq(carts.userID, userId),
     });
 
-    if (!existingItem) {
+    if (!userCart) {
+      return res.status(404).json({ message: "Cart not found" });
+    }
+
+    const deleted = await dbClient
+      .delete(cartItems)
+      .where(
+        and(eq(cartItems.id, Number(id)), eq(cartItems.cartId, userCart.id))
+      )
+      .returning();
+
+    if (!deleted.length) {
       return res.status(404).json({ message: "Cart item not found" });
     }
 
-    // ลบ cart item
-    await dbClient.delete(cartItems)
-      .where(eq(cartItems.id, Number(id)));
-
-    return res.status(200).json({
-      message: "Cart item deleted successfully",
-      cartItemId: id
-    });
-
+    return res.json({ message: "Cart item deleted successfully" });
   } catch (err) {
     next(err);
   }
 });
-
 
 export { cartRouter };
