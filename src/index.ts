@@ -27,6 +27,7 @@ import {
   orders,
   orderItems,
 } from "@db/schema.js";
+import { cartRouter } from "./routes/cart.ts";
 
 const debug = Debug("fs-backend");
 const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret";
@@ -46,6 +47,7 @@ app.use(express.json());
 app.use(cookieParser());
 app.use("/files", uploadRouter);
 app.use("/products", productsRouter);
+
 /* ==================== Auth Router ==================== */
 /* NOTE: คุณมี authRouter อยู่แล้ว ก็สามารถ mount ต่อไปได้
    เช่น app.use("/auth", authRouter) 
@@ -93,14 +95,14 @@ app.get("/users", authMiddleware, requireAdmin, async (req, res, next) => {
 
 
 /* ==================== Products ==================== */
-app.get("/products", async (req, res, next) => {
-  try {
-    const result = await dbClient.select().from(products);
-    res.json(result);
-  } catch (err) {
-    next(err);
-  }
-});
+// app.get("/products", async (req, res, next) => {
+//   try {
+//     const result = await dbClient.select().from(products);
+//     res.json(result);
+//   } catch (err) {
+//     next(err);
+//   }
+// });
 
 app.post("/products", authMiddleware, async (req, res, next) => {
   try {
@@ -146,8 +148,6 @@ app.post("/products", authMiddleware, async (req, res, next) => {
   }
 });
 
-
-
 /* Product details + variants */
 app.get("/products/:id", async (req, res, next) => {
   try {
@@ -172,84 +172,9 @@ app.get("/products/:id", async (req, res, next) => {
   }
 });
 
+
 /* ==================== Cart ==================== */
-app.get("/cart", authMiddleware, async (req, res, next) => {
-  try {
-    const userId = (req as any).user.userId;
-
-    const cart = await dbClient
-      .select()
-      .from(carts)
-      .where(eq(carts.userID, userId));
-
-    if (cart.length === 0) {
-      return res.json({ items: [] });
-    }
-
-    const items = await dbClient
-      .select()
-      .from(cartItems)
-      .where(eq(cartItems.cartId, cart[0].id));
-
-    res.json({ ...cart[0], items });
-  } catch (err) {
-    next(err);
-  }
-});
-
-app.post("/cart/add", authMiddleware, async (req, res, next) => {
-  try {
-    const userId = (req as any).user.userId;
-    const { variantId, qty } = req.body;
-
-    if (!variantId || !qty) {
-      return res.status(400).json({ message: "Missing variantId or qty" });
-    }
-
-    // หา cart ของ user
-    let cart = await dbClient
-      .select()
-      .from(carts)
-      .where(eq(carts.userID, userId));
-
-    if (cart.length === 0) {
-      const inserted = await dbClient
-        .insert(carts)
-        .values({ userID: userId })
-        .returning();
-      cart = inserted;
-    }
-
-    // ดึงราคาจาก variant
-    const variant = await dbClient
-      .select()
-      .from(productVariants)
-      .where(eq(productVariants.id, variantId));
-
-    if (variant.length === 0) {
-      return res.status(404).json({ message: "Variant not found" });
-    }
-
-    const unitPrice = parseFloat(variant[0].price);
-    const lineTotal = unitPrice * qty;
-
-    // insert cart item
-    const insertedItem = await dbClient
-      .insert(cartItems)
-      .values({
-        cartId: cart[0].id,
-        variantId,
-        qty,
-        unitPrice: unitPrice.toFixed(2),
-        lineTotal: lineTotal.toFixed(2),
-      })
-      .returning();
-
-    res.status(201).json(insertedItem[0]);
-  } catch (err) {
-    next(err);
-  }
-});
+app.use("/cart", authMiddleware, cartRouter);
 
 /* ==================== Orders ==================== */
 app.get("/orders", authMiddleware, async (req, res, next) => {
