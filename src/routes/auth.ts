@@ -1,21 +1,57 @@
 import { Router } from "express";
-import { dbClient } from "../../db/client.js";
-import { users as usersTable } from "../../db/schema.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { eq } from "drizzle-orm";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
+import { eq } from "drizzle-orm";
 
-const authRouter = Router();
-const JWT_SECRET = process.env.JWT_SECRET;
+import { dbClient } from "../../db/client.js";
+import { users as usersTable } from "../../db/schema.js";
+
+/** --------- ENV / CONSTANTS --------- */
+const {
+  JWT_SECRET,
+  NODE_ENV,
+  FRONTEND_URL,
+  SMTP_USER,
+  SMTP_PASS,
+} = process.env;
+
 if (!JWT_SECRET) throw new Error("Missing JWT_SECRET in .env");
+if (!FRONTEND_URL) throw new Error("Missing FRONTEND_URL in .env");
+
+const isProd = NODE_ENV === "production";
+
+/** --------- HELPERS --------- */
+type JwtPayload = {
+  userId: number;
+  email: string;
+  role: "ADMIN" | "CUSTOMER";
+  name?: string | null;
+  avatar?: string | null;
+};
+
+function signAccessToken(p: JwtPayload) {
+  return jwt.sign(p, JWT_SECRET!, { expiresIn: "15m" });
+}
+
+function setRefreshCookie(res: any, token: string) {
+  res.cookie("refreshToken", token, {
+    httpOnly: true,
+    secure: isProd,          // dev=false, prod=true
+    sameSite: isProd ? "strict" : "lax",
+    path: "/",
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 วัน
+  });
+}
+
+/** --------- ROUTER --------- */
+const authRouter = Router();
 
 /* ============ REGISTER ============ */
 authRouter.post("/register", async (req, res, next) => {
   try {
-    const { email, password, name, role } = req.body;
-
+    const { email, password, name } = req.body ?? {};
     if (
       typeof email !== "string" ||
       typeof password !== "string" ||
@@ -34,49 +70,45 @@ authRouter.post("/register", async (req, res, next) => {
     }
 
     // hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(
+      password,
+      Number(process.env.BCRYPT_SALT_ROUNDS ?? 10)
+    );
 
     // สร้าง verify token
     const verifyToken = crypto.randomBytes(32).toString("hex");
 
-    // insert user (ยังไม่ verified)
-    const inserted = await dbClient
-      .insert(usersTable)
-      .values({
-        email,
-        password: hashedPassword,
-        name,
-        role: role && role === "ADMIN" ? "ADMIN" : "CUSTOMER",
-        verifyToken, // 👈 ใช้ verifyToken ตรงกับ schema
-      })
-      .returning({
-        userID: usersTable.userID,
-        email: usersTable.email,
-        name: usersTable.name,
-        role: usersTable.role,
+    // insert user (ยังไม่ verified) — บังคับ role เป็น CUSTOMER เสมอ
+    await dbClient.insert(usersTable).values({
+      email,
+      password: hashedPassword,
+      name,
+      role: "CUSTOMER",
+      verifyToken,
+    });
+
+    // ส่ง email (ข้ามได้ถ้าไม่ตั้ง SMTP)
+    if (SMTP_USER && SMTP_PASS) {
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: { user: SMTP_USER, pass: SMTP_PASS },
       });
 
-    // ส่ง email
-    const transporter = nodemailer.createTransport({
-      service: "gmail", // หรือใช้ SMTP server ของคุณเอง
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
+      const verifyUrl = `${FRONTEND_URL}/verify?token=${verifyToken}&email=${encodeURIComponent(
+        email
+      )}`;
 
-    const verifyUrl = `${process.env.FRONTEND_URL}/verify?token=${verifyToken}&email=${email}`;
+      await transporter.sendMail({
+        from: `"No Reply" <${SMTP_USER}>`,
+        to: email,
+        subject: "Please verify your email",
+        html: `<p>Hello ${name},</p>
+               <p>Click below to verify your account:</p>
+               <a href="${verifyUrl}">${verifyUrl}</a>`,
+      });
+    }
 
-    await transporter.sendMail({
-      from: `"No Reply" <${process.env.SMTP_USER}>`,
-      to: email,
-      subject: "Please verify your email",
-      html: `<p>Hello ${name},</p>
-             <p>Click below to verify your account:</p>
-             <a href="${verifyUrl}">${verifyUrl}</a>`,
-    });
-
-    res.status(201).json({
+    return res.status(201).json({
       message:
         "User registered successfully. Please check your email to verify.",
     });
@@ -128,20 +160,16 @@ authRouter.get("/verify", async (req, res, next) => {
     }
 
     const user = found[0];
-
     if (user.verifyToken !== token) {
       return res.status(400).json({ error: "Invalid or expired token" });
     }
 
     await dbClient
       .update(usersTable)
-      .set({
-        emailVerifiedAt: new Date(),
-        verifyToken: null, // 👈 clear
-      })
+      .set({ emailVerifiedAt: new Date(), verifyToken: null })
       .where(eq(usersTable.userID, user.userID));
 
-    res.json({ message: "Email verified successfully. You can now login." });
+    return res.json({ message: "Email verified successfully. You can now login." });
   } catch (err) {
     next(err);
   }
@@ -150,7 +178,7 @@ authRouter.get("/verify", async (req, res, next) => {
 /* ============ LOGIN ============ */
 authRouter.post("/login", async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { email, password } = req.body ?? {};
 
     const found = await dbClient
       .select()
@@ -169,7 +197,7 @@ authRouter.post("/login", async (req, res, next) => {
         .json({ error: "Please verify your email before login" });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password!);
+    const isMatch = await bcrypt.compare(password, user.password ?? "");
     if (!isMatch) {
       return res.status(400).json({ error: "Invalid credentials" });
     }
@@ -178,25 +206,19 @@ authRouter.post("/login", async (req, res, next) => {
     const accessToken = jwt.sign(
       { userId: user.userID, email: user.email, role: user.role },
       JWT_SECRET!,
-      { expiresIn: "1h" }
+      { expiresIn: "15m" }
     );
 
-    // สร้าง refresh token
+    // refresh token (rotate ทุกครั้ง)
     const refreshToken = crypto.randomBytes(40).toString("hex");
     await dbClient
       .update(usersTable)
       .set({ refreshToken })
-      .where(eq(usersTable.userID, user.userID)); // 👈 fixed
+      .where(eq(usersTable.userID, user.userID));
 
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      path: "/",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    setRefreshCookie(res, refreshToken);
 
-    res.json({
+    return res.json({
       message: "Login successful",
       accessToken,
       user: {
@@ -215,42 +237,75 @@ authRouter.post("/login", async (req, res, next) => {
 /* ============ REFRESH TOKEN ============ */
 authRouter.post("/refresh", async (req, res, next) => {
   try {
-    const refreshToken = req.cookies.refreshToken;
-    if (!refreshToken)
-      return res.status(401).json({ error: "Missing refresh token" });
+    const rt = req.cookies?.refreshToken as string | undefined;
+    if (!rt) return res.status(401).json({ error: "Missing refresh token" });
 
     const found = await dbClient
       .select()
       .from(usersTable)
-      .where(eq(usersTable.refreshToken, refreshToken));
+      .where(eq(usersTable.refreshToken, rt));
 
-    if (found.length === 0)
+    if (found.length === 0) {
       return res.status(401).json({ error: "Invalid refresh token" });
+    }
 
     const user = found[0];
 
-    const newAccessToken = jwt.sign(
-      { userId: user.userID, email: user.email, role: user.role },
-      JWT_SECRET!,
-      { expiresIn: "15m" }
-    );
+    // ออก access token ใหม่
+    const payload: JwtPayload = {
+      userId: user.userID,
+      email: user.email!,
+      role: (user.role as "ADMIN" | "CUSTOMER") ?? "CUSTOMER",
+      name: user.name ?? null,
+      avatar: null,
+    };
+    const newAccessToken = signAccessToken(payload);
 
-    res.json({ accessToken: newAccessToken });
+    // rotate refresh token
+    const newRefresh = crypto.randomBytes(40).toString("hex");
+    await dbClient
+      .update(usersTable)
+      .set({ refreshToken: newRefresh })
+      .where(eq(usersTable.userID, user.userID));
+
+    setRefreshCookie(res, newRefresh);
+
+    return res.json({ accessToken: newAccessToken });
   } catch (err) {
     next(err);
   }
 });
 
 /* ============ LOGOUT ============ */
-authRouter.post("/logout", (req, res) => {
-  res.clearCookie("refreshToken", { path: "/" });
-  res.json({ message: "Logged out" });
+authRouter.post("/logout", async (req, res, next) => {
+  try {
+    const rt = req.cookies?.refreshToken as string | undefined;
+
+    // ล้าง cookie
+    res.clearCookie("refreshToken", {
+      path: "/",
+      sameSite: isProd ? "strict" : "lax",
+      secure: isProd,
+    });
+
+    // ล้างใน DB ถ้ามีค่า cookie
+    if (rt) {
+      await dbClient
+        .update(usersTable)
+        .set({ refreshToken: null })
+        .where(eq(usersTable.refreshToken, rt));
+    }
+
+    return res.json({ message: "Logged out" });
+  } catch (err) {
+    next(err);
+  }
 });
 
 /* ============ FORGOT PASSWORD ============ */
 authRouter.post("/forgot-password", async (req, res, next) => {
   try {
-    const { email } = req.body;
+    const { email } = req.body ?? {};
     if (!email) return res.status(400).json({ error: "Email is required" });
 
     const found = await dbClient
@@ -258,6 +313,7 @@ authRouter.post("/forgot-password", async (req, res, next) => {
       .from(usersTable)
       .where(eq(usersTable.email, email));
 
+    // เพื่อความปลอดภัย: ตอบ 200 เสมอ
     if (found.length === 0) {
       return res
         .status(200)
@@ -269,33 +325,31 @@ authRouter.post("/forgot-password", async (req, res, next) => {
 
     await dbClient
       .update(usersTable)
-      .set({
-        resetToken, // 👈 ใช้ resetToken ตรงกับ schema
-        updatedAt: new Date(),
-      })
+      .set({ resetToken, updatedAt: new Date() })
       .where(eq(usersTable.userID, user.userID));
 
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
+    if (SMTP_USER && SMTP_PASS) {
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: { user: SMTP_USER, pass: SMTP_PASS },
+      });
 
-    const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}&email=${email}`;
+      const resetUrl = `${FRONTEND_URL}/reset-password?token=${resetToken}&email=${encodeURIComponent(
+        email
+      )}`;
 
-    await transporter.sendMail({
-      from: `"No Reply" <${process.env.SMTP_USER}>`,
-      to: email,
-      subject: "Password Reset Request",
-      html: `<p>Hello,</p>
-             <p>You requested a password reset. Click the link below to reset your password:</p>
-             <a href="${resetUrl}">${resetUrl}</a>
-             <p>This link will expire in 1 hour.</p>`,
-    });
+      await transporter.sendMail({
+        from: `"No Reply" <${SMTP_USER}>`,
+        to: email,
+        subject: "Password Reset Request",
+        html: `<p>Hello,</p>
+               <p>You requested a password reset. Click the link below to reset your password:</p>
+               <a href="${resetUrl}">${resetUrl}</a>
+               <p>This link will expire in 1 hour.</p>`,
+      });
+    }
 
-    res.json({ message: "Reset password email sent if the account exists." });
+    return res.json({ message: "Reset password email sent if the account exists." });
   } catch (err) {
     next(err);
   }
@@ -304,7 +358,7 @@ authRouter.post("/forgot-password", async (req, res, next) => {
 /* ============ RESET PASSWORD ============ */
 authRouter.post("/reset-password", async (req, res, next) => {
   try {
-    const { email, token, password } = req.body;
+    const { email, token, password } = req.body ?? {};
     if (!email || !token || !password) {
       return res.status(400).json({ error: "Missing fields" });
     }
@@ -319,23 +373,21 @@ authRouter.post("/reset-password", async (req, res, next) => {
     }
 
     const user = found[0];
-
     if (user.resetToken !== token) {
       return res.status(400).json({ error: "Invalid or expired reset token" });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashed = await bcrypt.hash(
+      password,
+      Number(process.env.BCRYPT_SALT_ROUNDS ?? 10)
+    );
 
     await dbClient
       .update(usersTable)
-      .set({
-        password: hashedPassword,
-        resetToken: null, // 👈 clear
-        updatedAt: new Date(),
-      })
+      .set({ password: hashed, resetToken: null, updatedAt: new Date() })
       .where(eq(usersTable.userID, user.userID));
 
-    res.json({ message: "Password reset successful. Please login." });
+    return res.json({ message: "Password reset successful. Please login." });
   } catch (err) {
     next(err);
   }
@@ -350,11 +402,7 @@ authRouter.get("/me", async (req, res) => {
 
   const token = authHeader.split(" ")[1];
   try {
-    const payload = jwt.verify(token, JWT_SECRET!) as {
-      userId: number;
-      email: string;
-      role: string;
-    };
+    const payload = jwt.verify(token, JWT_SECRET!) as JwtPayload;
 
     const found = await dbClient
       .select()
@@ -366,16 +414,16 @@ authRouter.get("/me", async (req, res) => {
     }
 
     const user = found[0];
-    res.json({
+    return res.json({
       id: user.userID,
       name: user.name,
       email: user.email,
       role: user.role,
+      avatar: null,
     });
-  } catch (err) {
+  } catch {
     return res.status(401).json({ error: "Invalid token" });
   }
 });
-
 
 export { authRouter };

@@ -24,18 +24,16 @@
   },
   "contributors": [],
   "scripts": {
-    "dev": "nodemon",
-    "build": "tsc && tsc-alias",
-    "start": "node ./dist/src/index.js",
-    "db:generate": "cross-env NODE_OPTIONS='--import tsx' drizzle-kit generate",
-    "db:push": "cross-env NODE_OPTIONS='--import tsx' drizzle-kit push",
-    "db:migrate": "cross-env NODE_OPTIONS='--import tsx' drizzle-kit migrate",
-    "db:prototype": "tsx ./db/prototype.ts"
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "dev": "tsx src/index.ts",
+    "admin:seed": "tsx scripts/create-admin.ts",
+    "seed:products": "tsx scripts/seedProducts.ts"
   },
   "dependencies": {
     "@tsconfig/node-lts": "^22.0.2",
     "@tsconfig/node-ts": "^23.6.1",
-    "@types/jsonwebtoken": "^9.0.10",
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
@@ -50,13 +48,12 @@
     "multer": "^2.0.2",
     "nodemailer": "^7.0.6",
     "passport": "^0.7.0",
-    "passport-apple": "^2.0.2",
     "passport-facebook": "^3.0.0",
     "passport-google-oauth20": "^2.0.0",
     "postgres": "^3.4.7",
     "tsc-alias": "^1.8.16",
-    "tsx": "^4.20.5",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "undici": "^6.22.0"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
@@ -64,16 +61,17 @@
     "@types/cors": "^2.8.19",
     "@types/debug": "^4.1.12",
     "@types/express": "^5.0.3",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/morgan": "^1.9.10",
     "@types/multer": "^2.0.0",
     "@types/node": "^24.5.2",
     "@types/nodemailer": "^7.0.1",
     "@types/passport": "^1.0.17",
-    "@types/passport-apple": "^2.0.3",
     "@types/passport-facebook": "^3.0.3",
     "@types/passport-google-oauth20": "^2.0.16",
     "cross-env": "^10.0.0",
-    "drizzle-kit": "^0.31.4",
-    "nodemon": "^3.1.10"
+    "drizzle-kit": "^0.31.5",
+    "nodemon": "^3.1.10",
+    "tsx": "^4.20.6"
   }
 }

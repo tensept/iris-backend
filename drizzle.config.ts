@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { defineConfig } from "drizzle-kit";
-import { connectionString } from "@db/utils.js";
+import { connectionString } from "./db/utils.ts";
 
 export default defineConfig({
   dialect: "postgresql",
@@ -12,3 +12,4 @@ export default defineConfig({
   verbose: true,
   strict: true,
 });
+

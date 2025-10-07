@@ -17,7 +17,8 @@ productsRouter.post("/", upload.single("image"), async (req, res, next) => {
   try {
     const { pname, description, basePrice, pcId } = req.body;
 
-    let imageUrl: string | null = null;
+    let imageUrl = req.body.primaryImageUrl || null;
+
     if (req.file) {
       const filename = `${crypto.randomUUID()}.jpg`;
       await minioClient.putObject(BUCKET, filename, req.file.buffer);
