@@ -18,6 +18,7 @@ import cookieParser from "cookie-parser";
 import { dbClient } from "@db/client.js";
 import { uploadRouter } from "./routes/upload.js";
 import { productsRouter } from "./routes/products.js";
+import { shopsRouter } from "./routes/shops.ts";
 import {
   users,
   products,
@@ -146,7 +147,7 @@ app.post("/products", authMiddleware, async (req, res, next) => {
   }
 });
 
-
+app.use("/api", shopsRouter);
 
 /* Product details + variants */
 app.get("/products/:id", async (req, res, next) => {

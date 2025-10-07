@@ -28,7 +28,8 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "dev": "tsx src/index.ts",
-    "admin:seed": "tsx scripts/create-admin.ts"
+    "admin:seed": "tsx scripts/create-admin.ts",
+    "seed:products": "tsx scripts/seedProducts.ts"
   },
   "dependencies": {
     "@tsconfig/node-lts": "^22.0.2",
@@ -51,8 +52,8 @@
     "passport-google-oauth20": "^2.0.0",
     "postgres": "^3.4.7",
     "tsc-alias": "^1.8.16",
-    "tsx": "^4.20.6",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "undici": "^6.22.0"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
@@ -70,6 +71,7 @@
     "@types/passport-google-oauth20": "^2.0.16",
     "cross-env": "^10.0.0",
     "drizzle-kit": "^0.31.5",
-    "nodemon": "^3.1.10"
+    "nodemon": "^3.1.10",
+    "tsx": "^4.20.6"
   }
 }
