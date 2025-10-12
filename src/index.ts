@@ -19,6 +19,8 @@ import { dbClient } from "@db/client.js";
 import { uploadRouter } from "./routes/upload.js";
 import { productsRouter } from "./routes/products.js";
 import { shopsRouter } from "./routes/shops.ts";
+import categoriesRouter from "./routes/categories.ts";
+
 import {
   users,
   products,
@@ -197,6 +199,11 @@ app.get("/cart", authMiddleware, async (req, res, next) => {
     next(err);
   }
 });
+
+
+// ตรงนี้ต้อง mount หลังจาก init express
+app.use("/api/categories", categoriesRouter);
+
 
 app.post("/cart/add", authMiddleware, async (req, res, next) => {
   try {
