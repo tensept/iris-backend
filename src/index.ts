@@ -23,6 +23,7 @@ import { uploadRouter } from "./routes/upload.ts";
 import { productsRouter } from "./routes/products.ts";
 import { shopsRouter } from "./routes/shops.ts";
 import cartRouter from "./routes/cart.ts"; // ✅ นำเข้า cartRouter (default export)
+import paymentRouter from "./routes/payment.js";
 
 import {
   users,
@@ -206,7 +207,7 @@ app.use("/api/shop", shopsRouter);
 
 // 🛒 Cart (ต้องล็อกอิน)
 app.use("/api/cart", authMiddleware, cartRouter);
-
+app.use("/api/payment", authMiddleware, paymentRouter);
 /* ==================== Orders ==================== */
 app.get("/orders", authMiddleware, async (req, res, next) => {
   try {
@@ -243,7 +244,6 @@ app.get("/orders/:id", authMiddleware, async (req, res, next) => {
     next(err);
   }
 });
-
 /* ============== 404 ============== */
 app.use((req, res) => {
   res.status(404).json({ message: "Not found" });
