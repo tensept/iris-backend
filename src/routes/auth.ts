@@ -214,7 +214,7 @@ authRouter.post("/login", async (req, res, next) => {
 
     setRefreshCookie(res, refreshToken);
     setAccessCookie(res, accessToken);
-
+    const redirectPath = user.role === "ADMIN" ? "/admin" : "/shop";
     return res.json({
       message: "Login successful",
       // ไม่จำเป็นต้องใช้ accessToken ฝั่ง client ถ้าใช้ cookie ล้วน
@@ -224,7 +224,7 @@ authRouter.post("/login", async (req, res, next) => {
         name: user.name,
         role: user.role,
       },
-      redirect: "/home",
+      redirect: redirectPath,
     });
   } catch (err) {
     next(err);

@@ -40,7 +40,7 @@ paymentRouter.get("/me", async (req, res, next) => {
     const grandTotal = subtotal; // เพิ่ม logic คำนวณส่วนลด/ค่าส่งได้ในอนาคต
 
     // ✅ สร้าง PromptPay QR
-    const promptpayNumber = "0812345678"; // เบอร์ร้านหรือบัญชีจริงของคุณ
+    const promptpayNumber = "0867945514"; // เบอร์ร้านหรือบัญชีจริงของคุณ
     const qrPayload = generatePromptPayPayload(promptpayNumber, grandTotal);
 
     return res.json({
@@ -56,27 +56,51 @@ paymentRouter.get("/me", async (req, res, next) => {
   }
 });
 
-/* -------- Helper สำหรับสร้าง PromptPay QR -------- */
-function generatePromptPayPayload(mobileNumber: string, amount: number): string {
-  const id = mobileNumber.replace(/[^0-9]/g, "");
-  const amt = amount.toFixed(2);
-  const payload = `00020101021229370016A00000067701011101130066${id}5802TH530376454${amt
-    .replace(".", "")
-    .padStart(6, "0")}5802TH6304`;
+function generatePromptPayPayload(mobileNumber: string, amount?: number) {
+  const digits = mobileNumber.replace(/\D/g, "");
+  if (digits.length < 9) throw new Error("Invalid phone number");
+
+  // 0812345678 → 66812345678
+  const target = digits.startsWith("0") ? "66" + digits.slice(1) : digits;
+
+  // 👇 โครงสร้าง Merchant Info (Tag 29)
+  const merchantInfo =
+    "0016A000000677010111" + // AID (PromptPay)
+    "0115" +                 // ความยาวต่อไป = 15 ตัวอักษร (01 + 13 + เบอร์)
+    "0113" + target;         // 01 = มือถือ, 13 = ความยาวเบอร์
+
+  // รวม payload
+  let payload =
+    "000201" +               // Payload format indicator
+    "010212" +               // Dynamic QR
+    "29" + merchantInfo.length.toString().padStart(2, "0") + merchantInfo +
+    "5303764";               // Currency (THB = 764)
+
+  // เพิ่มจำนวนเงิน (ถ้ามี)
+  if (amount && amount > 0) {
+    const amt = amount.toFixed(2);
+    payload += "54" + amt.length.toString().padStart(2, "0") + amt;
+  }
+
+  payload += "5802TH"; // Country code
+  payload += "6304";   // CRC placeholder
+
   const crc = crc16(payload);
   return payload + crc.toUpperCase();
 }
 
-function crc16(str: string): string {
+function crc16(payload: string): string {
   let crc = 0xffff;
-  for (let i = 0; i < str.length; i++) {
-    crc ^= str.charCodeAt(i) << 8;
+  for (let i = 0; i < payload.length; i++) {
+    crc ^= payload.charCodeAt(i) << 8;
     for (let j = 0; j < 8; j++) {
-      crc = crc & 0x8000 ? (crc << 1) ^ 0x1021 : crc << 1;
+      crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) : (crc << 1);
       crc &= 0xffff;
     }
   }
   return crc.toString(16).padStart(4, "0");
 }
+
+
 
 export default paymentRouter;
