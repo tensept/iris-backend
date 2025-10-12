@@ -9,14 +9,7 @@ import { dbClient } from "../../db/client.js";
 import { users as usersTable } from "../../db/schema.js";
 
 /** --------- ENV / CONSTANTS --------- */
-const {
-  JWT_SECRET,
-  NODE_ENV,
-  FRONTEND_URL,
-  SMTP_USER,
-  SMTP_PASS,
-} = process.env;
-
+const { JWT_SECRET, NODE_ENV, FRONTEND_URL, SMTP_USER, SMTP_PASS } = process.env;
 if (!JWT_SECRET) throw new Error("Missing JWT_SECRET in .env");
 if (!FRONTEND_URL) throw new Error("Missing FRONTEND_URL in .env");
 
@@ -38,10 +31,20 @@ function signAccessToken(p: JwtPayload) {
 function setRefreshCookie(res: any, token: string) {
   res.cookie("refreshToken", token, {
     httpOnly: true,
-    secure: isProd,          // dev=false, prod=true
-    sameSite: isProd ? "strict" : "lax",
+    secure: isProd,
+    sameSite: "lax",
     path: "/",
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 วัน
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
+}
+
+function setAccessCookie(res: any, accessToken: string) {
+  res.cookie("token", accessToken, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 15 * 60 * 1000,
   });
 }
 
@@ -60,7 +63,6 @@ authRouter.post("/register", async (req, res, next) => {
       return res.status(400).json({ error: "Invalid input type" });
     }
 
-    // ตรวจสอบ email ซ้ำ
     const existing = await dbClient
       .select()
       .from(usersTable)
@@ -69,16 +71,13 @@ authRouter.post("/register", async (req, res, next) => {
       return res.status(400).json({ error: "Email already registered" });
     }
 
-    // hash password
     const hashedPassword = await bcrypt.hash(
       password,
       Number(process.env.BCRYPT_SALT_ROUNDS ?? 10)
     );
 
-    // สร้าง verify token
     const verifyToken = crypto.randomBytes(32).toString("hex");
 
-    // insert user (ยังไม่ verified) — บังคับ role เป็น CUSTOMER เสมอ
     await dbClient.insert(usersTable).values({
       email,
       password: hashedPassword,
@@ -87,7 +86,6 @@ authRouter.post("/register", async (req, res, next) => {
       verifyToken,
     });
 
-    // ส่ง email (ข้ามได้ถ้าไม่ตั้ง SMTP)
     if (SMTP_USER && SMTP_PASS) {
       const transporter = nodemailer.createTransport({
         service: "gmail",
@@ -202,14 +200,12 @@ authRouter.post("/login", async (req, res, next) => {
       return res.status(400).json({ error: "Invalid credentials" });
     }
 
-    // สร้าง access token (อายุสั้น)
     const accessToken = jwt.sign(
       { userId: user.userID, email: user.email, role: user.role },
       JWT_SECRET!,
       { expiresIn: "15m" }
     );
 
-    // refresh token (rotate ทุกครั้ง)
     const refreshToken = crypto.randomBytes(40).toString("hex");
     await dbClient
       .update(usersTable)
@@ -217,10 +213,11 @@ authRouter.post("/login", async (req, res, next) => {
       .where(eq(usersTable.userID, user.userID));
 
     setRefreshCookie(res, refreshToken);
+    setAccessCookie(res, accessToken);
 
     return res.json({
       message: "Login successful",
-      accessToken,
+      // ไม่จำเป็นต้องใช้ accessToken ฝั่ง client ถ้าใช้ cookie ล้วน
       user: {
         id: user.userID,
         email: user.email,
@@ -251,7 +248,6 @@ authRouter.post("/refresh", async (req, res, next) => {
 
     const user = found[0];
 
-    // ออก access token ใหม่
     const payload: JwtPayload = {
       userId: user.userID,
       email: user.email!,
@@ -259,9 +255,10 @@ authRouter.post("/refresh", async (req, res, next) => {
       name: user.name ?? null,
       avatar: null,
     };
+
     const newAccessToken = signAccessToken(payload);
 
-    // rotate refresh token
+    // rotate refresh
     const newRefresh = crypto.randomBytes(40).toString("hex");
     await dbClient
       .update(usersTable)
@@ -269,8 +266,9 @@ authRouter.post("/refresh", async (req, res, next) => {
       .where(eq(usersTable.userID, user.userID));
 
     setRefreshCookie(res, newRefresh);
+    setAccessCookie(res, newAccessToken);
 
-    return res.json({ accessToken: newAccessToken });
+    return res.json({ ok: true });
   } catch (err) {
     next(err);
   }
@@ -281,14 +279,18 @@ authRouter.post("/logout", async (req, res, next) => {
   try {
     const rt = req.cookies?.refreshToken as string | undefined;
 
-    // ล้าง cookie
+    // ล้างทั้ง 2 คุกกี้
     res.clearCookie("refreshToken", {
       path: "/",
-      sameSite: isProd ? "strict" : "lax",
+      sameSite: "lax",
+      secure: isProd,
+    });
+    res.clearCookie("token", {
+      path: "/",
+      sameSite: "lax",
       secure: isProd,
     });
 
-    // ล้างใน DB ถ้ามีค่า cookie
     if (rt) {
       await dbClient
         .update(usersTable)
@@ -313,7 +315,7 @@ authRouter.post("/forgot-password", async (req, res, next) => {
       .from(usersTable)
       .where(eq(usersTable.email, email));
 
-    // เพื่อความปลอดภัย: ตอบ 200 เสมอ
+    // ตอบ 200 เสมอเพื่อความปลอดภัย
     if (found.length === 0) {
       return res
         .status(200)
@@ -355,54 +357,22 @@ authRouter.post("/forgot-password", async (req, res, next) => {
   }
 });
 
-/* ============ RESET PASSWORD ============ */
-authRouter.post("/reset-password", async (req, res, next) => {
-  try {
-    const { email, token, password } = req.body ?? {};
-    if (!email || !token || !password) {
-      return res.status(400).json({ error: "Missing fields" });
-    }
-
-    const found = await dbClient
-      .select()
-      .from(usersTable)
-      .where(eq(usersTable.email, email));
-
-    if (found.length === 0) {
-      return res.status(400).json({ error: "Invalid email or token" });
-    }
-
-    const user = found[0];
-    if (user.resetToken !== token) {
-      return res.status(400).json({ error: "Invalid or expired reset token" });
-    }
-
-    const hashed = await bcrypt.hash(
-      password,
-      Number(process.env.BCRYPT_SALT_ROUNDS ?? 10)
-    );
-
-    await dbClient
-      .update(usersTable)
-      .set({ password: hashed, resetToken: null, updatedAt: new Date() })
-      .where(eq(usersTable.userID, user.userID));
-
-    return res.json({ message: "Password reset successful. Please login." });
-  } catch (err) {
-    next(err);
-  }
-});
-
 /* ============ GET CURRENT USER ============ */
 authRouter.get("/me", async (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader?.startsWith("Bearer ")) {
+  // ✅ ทางเลือกที่ 1: อ่านจาก cookie 'token' ก่อน
+  let raw = (req as any).cookies?.token as string | undefined;
+
+  // ✅ เผื่อกรณีบางที่แนบ Authorization มาด้วย (ไม่บังคับ)
+  if (!raw && req.headers.authorization?.startsWith("Bearer ")) {
+    raw = req.headers.authorization.split(" ")[1];
+  }
+
+  if (!raw) {
     return res.status(401).json({ error: "Missing token" });
   }
 
-  const token = authHeader.split(" ")[1];
   try {
-    const payload = jwt.verify(token, JWT_SECRET!) as JwtPayload;
+    const payload = jwt.verify(raw, JWT_SECRET!) as JwtPayload;
 
     const found = await dbClient
       .select()
