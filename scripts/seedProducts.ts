@@ -171,6 +171,14 @@ const SEED: SeedItem[] = [
       "https://images.unsplash.com/photo-1631214499500-2e34edcaccfe?q=80&w=715&auto=format&fit=crop",
     ],
     variants: [
+<<<<<<< HEAD
+      { shadeName: "01", shadeCode: "#5b0e0eff", price: 350, stockQty: 20 },
+      { shadeName: "02", shadeCode: "#c65a6b", price: 350, stockQty: 20 },
+      { shadeName: "03", shadeCode: "#d36c7a", price: 350, stockQty: 20 },
+      { shadeName: "04", shadeCode: "#e07f8b", price: 350, stockQty: 20 },
+      { shadeName: "05", shadeCode: "#f3c8caff", price: 350, stockQty: 20 },
+    ],
+=======
     {
       shadeName: "01",
       shadeCode: "#b85a5a",
@@ -207,6 +215,7 @@ const SEED: SeedItem[] = [
       imageUrl: "https://images.unsplash.com/photo-1557797405-891f09b308bc?q=80&w=1025&auto=format&fit=crop",
     },
   ],
+>>>>>>> bc3c2d968c464c69e31686f4bc3df8d96988c4c3
   },
   {
     pname: "Velvet Matte Lipstick",
@@ -322,7 +331,22 @@ const SEED: SeedItem[] = [
       "https://plus.unsplash.com/premium_photo-1703521302674-e16cea300044?q=80&w=687&auto=format&fit=crop",
     ],
   },
-
+  {
+    pname: "Matte Lipstick",
+    description: "Intense pigment, matte but comfy.",
+    basePrice: 420,
+    pcName: "LIPS",
+    primaryImageUrl:
+      "https://plus.unsplash.com/premium_photo-1677350811721-4ff958ef5588?q=80&w=1332&auto=format&fit=crop",
+    images: [
+      "https://plus.unsplash.com/premium_photo-1677350811721-4ff958ef5588?q=80&w=1332&auto=format&fit=crop",
+      "https://plus.unsplash.com/premium_photo-1738065061341-12f258ef930f?q=80&w=1170&auto=format&fit=crop",
+    ],
+    variants: [
+      { shadeName: "Brick", shadeCode: "#8a3b33", price: 420, stockQty: 15 },
+      { shadeName: "Rose", shadeCode: "#b85a6b", price: 420, stockQty: 15 },
+    ],
+  },
   // ---------- FACE ----------
   {
     pname: "Cushion Foundation",
@@ -409,7 +433,11 @@ const SEED: SeedItem[] = [
     primaryImageUrl:
       "https://images.unsplash.com/photo-1512207037870-c006a7631ae0?q=80&w=730&auto=format&fit=crop",
     images: [
+<<<<<<< HEAD
+      "https://images.unsplash.com/photo-1512207037870-c006a7631ae0?q=80&w=730&auto=format&fit=crop",
+=======
       "https://images.unsplash.com/photo-1594465919760-441fe5908ab0?q=80&w=764&auto=format&fit=crop",
+>>>>>>> bc3c2d968c464c69e31686f4bc3df8d96988c4c3
     ],
   },
   {
@@ -420,7 +448,11 @@ const SEED: SeedItem[] = [
     primaryImageUrl:
       "https://images.unsplash.com/photo-1690214392602-796cff6b4e8a?q=80&w=687&auto=format&fit=crop",
     images: [
+<<<<<<< HEAD
+      "https://images.unsplash.com/photo-1690214392602-796cff6b4e8a?q=80&w=687&auto=format&fit=crop",
+=======
       "https://images.unsplash.com/photo-1674867506194-665878140856?q=80&w=687&auto=format&fit=crop",
+>>>>>>> bc3c2d968c464c69e31686f4bc3df8d96988c4c3
     ],
   },
   {
@@ -431,7 +463,11 @@ const SEED: SeedItem[] = [
     primaryImageUrl:
       "https://images.unsplash.com/photo-1634282347052-58ef7fa1704a?q=80&w=1170&auto=format&fit=crop",
     images: [
+<<<<<<< HEAD
+      "https://images.unsplash.com/photo-1634282347052-58ef7fa1704a?q=80&w=1170&auto=format&fit=crop",
+=======
       "https://images.unsplash.com/photo-1692318601456-1d2bbc8e0250?q=80&w=687&auto=format&fit=crop",
+>>>>>>> bc3c2d968c464c69e31686f4bc3df8d96988c4c3
     ],
   },
   {
@@ -442,7 +478,11 @@ const SEED: SeedItem[] = [
     primaryImageUrl:
       "https://images.unsplash.com/photo-1583241800804-8eea95214a87?q=80&w=1170&auto=format&fit=crop",
     images: [
+<<<<<<< HEAD
+      "https://images.unsplash.com/photo-1583241800804-8eea95214a87?q=80&w=1170&auto=format&fit=crop",
+=======
       "https://images.unsplash.com/photo-1692318520072-7de43d4462ca?q=80&w=687&auto=format&fit=crop",
+>>>>>>> bc3c2d968c464c69e31686f4bc3df8d96988c4c3
     ],
   },
 
@@ -455,7 +495,11 @@ const SEED: SeedItem[] = [
     primaryImageUrl:
       "https://images.unsplash.com/photo-1608571423539-e951b9b3871e?q=80&w=680&auto=format&fit=crop",
     images: [
+<<<<<<< HEAD
+      "https://images.unsplash.com/photo-1608571423539-e951b9b3871e?q=80&w=680&auto=format&fit=crop",
+=======
       "https://images.unsplash.com/photo-1556760544-74068565f05c?q=80&w=1170&auto=format&fit=crop",
+>>>>>>> bc3c2d968c464c69e31686f4bc3df8d96988c4c3
     ],
   },
   {
@@ -466,7 +510,11 @@ const SEED: SeedItem[] = [
     primaryImageUrl:
       "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?q=80&w=687&auto=format&fit=crop",
     images: [
+<<<<<<< HEAD
+      "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?q=80&w=687&auto=format&fit=crop",
+=======
       "https://plus.unsplash.com/premium_photo-1679046949251-e562f2e30fa4?q=80&w=687&auto=format&fit=crop",
+>>>>>>> bc3c2d968c464c69e31686f4bc3df8d96988c4c3
     ],
   },
   {
@@ -477,7 +525,11 @@ const SEED: SeedItem[] = [
     primaryImageUrl:
       "https://images.unsplash.com/photo-1679580569570-bdcb63025bd0?q=80&w=709&auto=format&fit=crop",
     images: [
+<<<<<<< HEAD
+      "https://images.unsplash.com/photo-1679580569570-bdcb63025bd0?q=80&w=709&auto=format&fit=crop",
+=======
       "https://plus.unsplash.com/premium_photo-1679046949251-e562f2e30fa4?q=80&w=687&auto=format&fit=crop",
+>>>>>>> bc3c2d968c464c69e31686f4bc3df8d96988c4c3
     ],
   },
   {
@@ -488,7 +540,11 @@ const SEED: SeedItem[] = [
     primaryImageUrl:
       "https://images.unsplash.com/photo-1671642605304-2a0a812b5529?q=80&w=627&auto=format&fit=crop",
     images: [
+<<<<<<< HEAD
+      "https://images.unsplash.com/photo-1671642605304-2a0a812b5529?q=80&w=627&auto=format&fit=crop",
+=======
       "https://plus.unsplash.com/premium_photo-1679046949251-e562f2e30fa4?q=80&w=687&auto=format&fit=crop",
+>>>>>>> bc3c2d968c464c69e31686f4bc3df8d96988c4c3
     ],
   },
   {
@@ -499,7 +555,11 @@ const SEED: SeedItem[] = [
     primaryImageUrl:
       "https://images.unsplash.com/photo-1667803552102-00de1188d66f?q=80&w=880&auto=format&fit=crop",
     images: [
+<<<<<<< HEAD
+      "https://images.unsplash.com/photo-1667803552102-00de1188d66f?q=80&w=880&auto=format&fit=crop",
+=======
       "https://plus.unsplash.com/premium_photo-1677849925911-43bac3473aee?q=80&w=1171&auto=format&fit=crop",
+>>>>>>> bc3c2d968c464c69e31686f4bc3df8d96988c4c3
     ],
   },
 
@@ -512,7 +572,11 @@ const SEED: SeedItem[] = [
     primaryImageUrl:
       "https://images.unsplash.com/photo-1653295501005-f1681bc095de?q=80&w=1123&auto=format&fit=crop",
     images: [
+<<<<<<< HEAD
+      "https://images.unsplash.com/photo-1653295501005-f1681bc095de?q=80&w=1123&auto=format&fit=crop",
+=======
       "https://images.unsplash.com/photo-1600228390270-970186129936?q=80&w=880&auto=format&fit=crop",
+>>>>>>> bc3c2d968c464c69e31686f4bc3df8d96988c4c3
     ],
   },
   {
@@ -523,7 +587,11 @@ const SEED: SeedItem[] = [
     primaryImageUrl:
       "https://images.unsplash.com/photo-1631120234265-83988f58b8af?q=80&w=1170&auto=format&fit=crop",
     images: [
+<<<<<<< HEAD
+      "https://images.unsplash.com/photo-1631120234265-83988f58b8af?q=80&w=1170&auto=format&fit=crop",
+=======
       "https://images.unsplash.com/photo-1625435784621-08cec1189729?q=80&w=735&auto=format&fit=crop",
+>>>>>>> bc3c2d968c464c69e31686f4bc3df8d96988c4c3
     ],
   },
   {
@@ -534,7 +602,11 @@ const SEED: SeedItem[] = [
     primaryImageUrl:
       "https://images.unsplash.com/photo-1602573991396-fb69ee6d7a0d?q=80&w=1170&auto=format&fit=crop",
     images: [
+<<<<<<< HEAD
+      "https://images.unsplash.com/photo-1602573991396-fb69ee6d7a0d?q=80&w=1170&auto=format&fit=crop",
+=======
       "https://plus.unsplash.com/premium_photo-1726812011251-d0c8d9e5d7d4?q=80&w=1124&auto=format&fit=crop",
+>>>>>>> bc3c2d968c464c69e31686f4bc3df8d96988c4c3
     ],
   },
   {
@@ -545,7 +617,11 @@ const SEED: SeedItem[] = [
     primaryImageUrl:
       "https://images.unsplash.com/photo-1620531940052-d0d9aff03c32?q=80&w=735&auto=format&fit=crop",
     images: [
+<<<<<<< HEAD
+      "https://images.unsplash.com/photo-1620531940052-d0d9aff03c32?q=80&w=735&auto=format&fit=crop",
+=======
       "https://plus.unsplash.com/premium_photo-1718626726854-452ba90f3c53?q=80&w=1170&auto=format&fit=crop",
+>>>>>>> bc3c2d968c464c69e31686f4bc3df8d96988c4c3
     ],
   },
   {
@@ -556,7 +632,11 @@ const SEED: SeedItem[] = [
     primaryImageUrl:
       "https://images.unsplash.com/photo-1617220374460-573b04b37916?q=80&w=687&auto=format&fit=crop",
     images: [
+<<<<<<< HEAD
+      "https://images.unsplash.com/photo-1617220374460-573b04b37916?q=80&w=687&auto=format&fit=crop",
+=======
       "https://images.unsplash.com/photo-1623884167410-ea10ba23466a?q=80&w=798&auto=format&fit=crop",
+>>>>>>> bc3c2d968c464c69e31686f4bc3df8d96988c4c3
     ],
   },
 ];
@@ -579,6 +659,13 @@ async function main() {
   for (const item of SEED) {
     const pcId = catMap.get(item.pcName)!;
 
+<<<<<<< HEAD
+    const primaryImageUrl = await uploadFromUrlToMinio(
+      item.primaryImageUrl ?? null
+    );
+    const images = item.images?.length
+      ? await Promise.all(item.images.map((u) => uploadFromUrlToMinio(u)))
+=======
     // 1) อัพโหลดรูปหลัก (ครั้งเดียว) แล้วใช้ URL ที่ได้ต่อไป
     const primaryImageUrl = await uploadFromUrlToMinio(item.primaryImageUrl ?? null);
 
@@ -591,6 +678,7 @@ async function main() {
     );
     const uploadedImages = uniqueImages.length
       ? await Promise.all(uniqueImages.map(u => uploadFromUrlToMinio(u)))
+>>>>>>> bc3c2d968c464c69e31686f4bc3df8d96988c4c3
       : [];
 
     // 3) insert product
@@ -602,7 +690,11 @@ async function main() {
         basePrice: toPrice(item.basePrice),
         pcId,
         primaryImageUrl: primaryImageUrl ?? item.primaryImageUrl ?? null,
+<<<<<<< HEAD
+        images: images.length ? (images as string[]) : item.images ?? [],
+=======
         images: uploadedImages, // ใช้รายการที่กรองและอัพโหลดแล้ว
+>>>>>>> bc3c2d968c464c69e31686f4bc3df8d96988c4c3
       })
       .returning({ pId: products.pId });
 
@@ -611,6 +703,11 @@ async function main() {
     // 4) insert variants
     if (item.variants?.length) {
       for (const v of item.variants) {
+<<<<<<< HEAD
+        const vImg = await uploadFromUrlToMinio(
+          v.imageUrl ?? primaryImageUrl ?? null
+        );
+=======
         // อัพโหลดเฉพาะกรณีมีรูปของเฉดเอง; ถ้าไม่มีให้ใช้ primary ที่อัพโหลดแล้ว
         let vImg: string | null = null;
         if (v.imageUrl) {
@@ -619,6 +716,7 @@ async function main() {
           vImg = primaryImageUrl ?? null;
         }
 
+>>>>>>> bc3c2d968c464c69e31686f4bc3df8d96988c4c3
         await dbClient.insert(productVariants).values({
           pId: pid,
           sku: v.sku ?? `SKU-${pid}-${Date.now().toString().slice(-5)}-${rand(100, 999)}`,

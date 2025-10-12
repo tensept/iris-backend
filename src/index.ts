@@ -22,6 +22,7 @@ import { oauthRouter } from "./routes/oauth.ts";
 import { uploadRouter } from "./routes/upload.ts";
 import { productsRouter } from "./routes/products.ts";
 import { shopsRouter } from "./routes/shops.ts";
+import categoriesRouter from "./routes/categories.ts";
 import cartRouter from "./routes/cart.ts"; // ✅ นำเข้า cartRouter (default export)
 import paymentRouter from "./routes/payment.js";
 
@@ -205,6 +206,113 @@ app.post("/products", authMiddleware, async (req, res, next) => {
 // ร้านค้าอื่น ๆ
 app.use("/api/shop", shopsRouter);
 
+/* Product details + variants */
+app.get("/products/:id", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const product = await dbClient
+      .select()
+      .from(products)
+      .where(eq(products.pId, Number(id)));
+
+    if (product.length === 0) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    const variants = await dbClient
+      .select()
+      .from(productVariants)
+      .where(eq(productVariants.pId, Number(id)));
+
+    res.json({ ...product[0], variants });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ==================== Cart ==================== */
+app.get("/cart", authMiddleware, async (req, res, next) => {
+  try {
+    const userId = (req as any).user.userId;
+
+    const cart = await dbClient
+      .select()
+      .from(carts)
+      .where(eq(carts.userID, userId));
+
+    if (cart.length === 0) {
+      return res.json({ items: [] });
+    }
+
+    const items = await dbClient
+      .select()
+      .from(cartItems)
+      .where(eq(cartItems.cartId, cart[0].id));
+
+    res.json({ ...cart[0], items });
+  } catch (err) {
+    next(err);
+  }
+});
+
+
+// ตรงนี้ต้อง mount หลังจาก init express
+app.use("/api/categories", categoriesRouter);
+
+
+app.post("/cart/add", authMiddleware, async (req, res, next) => {
+  try {
+    const userId = (req as any).user.userId;
+    const { variantId, qty } = req.body;
+
+    if (!variantId || !qty) {
+      return res.status(400).json({ message: "Missing variantId or qty" });
+    }
+
+    // หา cart ของ user
+    let cart = await dbClient
+      .select()
+      .from(carts)
+      .where(eq(carts.userID, userId));
+
+    if (cart.length === 0) {
+      const inserted = await dbClient
+        .insert(carts)
+        .values({ userID: userId })
+        .returning();
+      cart = inserted;
+    }
+
+    // ดึงราคาจาก variant
+    const variant = await dbClient
+      .select()
+      .from(productVariants)
+      .where(eq(productVariants.id, variantId));
+
+    if (variant.length === 0) {
+      return res.status(404).json({ message: "Variant not found" });
+    }
+
+    const unitPrice = parseFloat(variant[0].price);
+    const lineTotal = unitPrice * qty;
+
+    // insert cart item
+    const insertedItem = await dbClient
+      .insert(cartItems)
+      .values({
+        cartId: cart[0].id,
+        variantId,
+        qty,
+        unitPrice: unitPrice.toFixed(2),
+        lineTotal: lineTotal.toFixed(2),
+      })
+      .returning();
+
+    res.status(201).json(insertedItem[0]);
+  } catch (err) {
+    next(err);
+  }
+});
 // 🛒 Cart (ต้องล็อกอิน)
 app.use("/api/cart", authMiddleware, cartRouter);
 app.use("/api/payment", authMiddleware, paymentRouter);
