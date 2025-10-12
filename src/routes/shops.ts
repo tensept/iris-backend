@@ -81,7 +81,7 @@ shopsRouter.get("/products", async (req, res, next) => {
   }
 });
 
-/** GET /api/bestsellers  (ตัวอย่าง: ยอดขายรวมสูงสุด 8 ชิ้น) */
+/** GET /api/shop/bestsellers  (ตัวอย่าง: ยอดขายรวมสูงสุด 8 ชิ้น) */
 shopsRouter.get("/bestsellers", async (req, res, next) => {
   try {
     // ถ้ามีตาราง order_items
