@@ -1,18 +1,71 @@
-// src/routes/payment.ts
 import { Router } from "express";
 import { dbClient } from "../../db/client.js";
-import { carts, cartItems, productVariants } from "../../db/schema.js";
-import { eq } from "drizzle-orm";
+import {
+  carts,
+  cartItems,
+  productVariants,
+  orders,
+  orderItems,
+} from "../../db/schema.js";
+import { eq, desc } from "drizzle-orm";
 
 const paymentRouter = Router();
 
-/** ✅ ดึงข้อมูลตะกร้าเพื่อใช้สร้าง QR Payment */
 paymentRouter.get("/me", async (req, res, next) => {
   try {
-    const userId = (req as any)?.user?.userId as number | undefined;
+    const userId = (req as any)?.user?.userId;
     if (!userId) return res.status(401).json({ message: "Unauthenticated" });
 
-    // หา cart ของผู้ใช้
+    const [latestOrder] = await dbClient
+      .select()
+      .from(orders)
+      .where(eq(orders.userID, userId))
+      .orderBy(desc(orders.createdAt))
+      .limit(1);
+
+    if (!latestOrder)
+      return res.status(404).json({ message: "No orders found" });
+
+    const items = await dbClient
+      .select({
+        id: orderItems.id,
+        name: orderItems.name,
+        shadeName: orderItems.shadeName,
+        unitPrice: orderItems.unitPrice,
+        qty: orderItems.qty,
+        lineTotal: orderItems.lineTotal,
+        imageUrl: productVariants.imageUrl,
+      })
+      .from(orderItems)
+      .leftJoin(productVariants, eq(orderItems.variantId, productVariants.id))
+      .where(eq(orderItems.orderId, latestOrder.id));
+
+    const promptpayNumber = "0867945514";
+    const qrPayload = generatePromptPayPayload(
+      promptpayNumber,
+      Number(latestOrder.grandTotal)
+    );
+
+    return res.json({
+      orderId: latestOrder.id,
+      items,
+      subtotal: latestOrder.subtotal,
+      grandTotal: latestOrder.grandTotal,
+      promptpayQR: qrPayload,
+      status: latestOrder.status,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+
+paymentRouter.post("/create", async (req, res, next) => {
+  try {
+    const userId = (req as any)?.user?.userId;
+    if (!userId) return res.status(401).json({ message: "Unauthenticated" });
+
     const [cart] = await dbClient
       .select()
       .from(carts)
@@ -21,40 +74,104 @@ paymentRouter.get("/me", async (req, res, next) => {
 
     if (!cart) return res.status(404).json({ message: "Cart not found" });
 
-    // ดึงสินค้าภายใน cart
     const items = await dbClient
       .select({
         id: cartItems.id,
+        variantId: cartItems.variantId,
+        qty: cartItems.qty,
+        unitPrice: cartItems.unitPrice,
+        lineTotal: cartItems.lineTotal,
+        productId: productVariants.pId,
         name: productVariants.sku,
         shadeName: productVariants.shadeName,
-        unitPrice: cartItems.unitPrice,
-        qty: cartItems.qty,
-        lineTotal: cartItems.lineTotal,
-        imageUrl: productVariants.imageUrl,
       })
       .from(cartItems)
       .leftJoin(productVariants, eq(productVariants.id, cartItems.variantId))
       .where(eq(cartItems.cartId, cart.id));
 
-    const subtotal = items.reduce((sum, it) => sum + Number(it.lineTotal), 0);
-    const grandTotal = subtotal; // เพิ่ม logic คำนวณส่วนลด/ค่าส่งได้ในอนาคต
+    if (items.length === 0)
+      return res.status(400).json({ message: "Cart is empty" });
 
-    // ✅ สร้าง PromptPay QR
-    const promptpayNumber = "0867945514"; // เบอร์ร้านหรือบัญชีจริงของคุณ
+    const subtotal = items.reduce((s, it) => s + Number(it.lineTotal), 0);
+    const shippingFee = 0;
+    const grandTotal = subtotal + shippingFee;
+
+    // ✅ สร้าง order
+    const [order] = await dbClient
+      .insert(orders)
+      .values({
+        userID: userId,
+        status: "PENDING",
+        subtotal: subtotal.toFixed(2),
+        shippingFee: shippingFee.toFixed(2),
+        grandTotal: grandTotal.toFixed(2),
+      })
+      .returning({ id: orders.id });
+
+    // ✅ insert order_items
+    for (const it of items) {
+      await dbClient.insert(orderItems).values({
+        orderId: order.id,
+        productId: it.productId,
+        variantId: it.variantId,
+        name: it.name,
+        shadeName: it.shadeName,
+        unitPrice: it.unitPrice,
+        qty: it.qty,
+        lineTotal: it.lineTotal,
+      });
+    }
+
+    // ❌ อย่าล้าง cart ที่นี่
+
+    // ✅ สร้าง QR PromptPay
+    const promptpayNumber = "0867945514";
     const qrPayload = generatePromptPayPayload(promptpayNumber, grandTotal);
 
-    return res.json({
-      userID: userId,
-      items,
-      subtotal: subtotal.toFixed(2),
-      grandTotal: grandTotal.toFixed(2),
+    return res.status(201).json({
+      orderId: order.id,
+      subtotal,
+      grandTotal,
       promptpayQR: qrPayload,
-      expiresAt: new Date(Date.now() + 60 * 60 * 1000), // QR หมดอายุ 1 ชม.
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
     });
   } catch (err) {
+    console.error("❌ Error create order:", err);
     next(err);
   }
 });
+
+paymentRouter.post("/confirm", async (req, res, next) => {
+  try {
+    const userId = (req as any)?.user?.userId;
+    const { orderId } = req.body;
+    if (!userId) return res.status(401).json({ message: "Unauthenticated" });
+    if (!orderId) return res.status(400).json({ message: "Missing orderId" });
+
+    // ✅ อัปเดตสถานะ order เป็น PAID
+    await dbClient
+      .update(orders)
+      .set({ status: "PAID" })
+      .where(eq(orders.id, orderId));
+
+    // ✅ หา cart ของ user แล้วล้างของใน cart
+    const [cart] = await dbClient
+      .select()
+      .from(carts)
+      .where(eq(carts.userID, userId))
+      .limit(1);
+
+    if (cart) {
+      await dbClient.delete(cartItems).where(eq(cartItems.cartId, cart.id));
+    }
+
+    return res.json({ message: "Payment confirmed and cart cleared." });
+  } catch (err) {
+    console.error("❌ Error confirming payment:", err);
+    next(err);
+  }
+});
+
 
 function generatePromptPayPayload(mobileNumber: string, amount?: number) {
   const digits = mobileNumber.replace(/\D/g, "");

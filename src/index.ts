@@ -25,6 +25,7 @@ import { shopsRouter } from "./routes/shops.ts";
 import categoriesRouter from "./routes/categories.ts";
 import cartRouter from "./routes/cart.ts"; // ✅ นำเข้า cartRouter (default export)
 import paymentRouter from "./routes/payment.js";
+import ordersRouter from "./routes/orders.js";
 
 import {
   users,
@@ -316,6 +317,8 @@ app.post("/cart/add", authMiddleware, async (req, res, next) => {
 // 🛒 Cart (ต้องล็อกอิน)
 app.use("/api/cart", authMiddleware, cartRouter);
 app.use("/api/payment", authMiddleware, paymentRouter);
+app.use("/api/orders", ordersRouter);
+
 /* ==================== Orders ==================== */
 app.get("/orders", authMiddleware, async (req, res, next) => {
   try {
