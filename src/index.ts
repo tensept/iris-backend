@@ -317,48 +317,48 @@ app.post("/cart/add", authMiddleware, async (req, res, next) => {
 // 🛒 Cart (ต้องล็อกอิน)
 app.use("/api/cart", authMiddleware, cartRouter);
 app.use("/api/payment", authMiddleware, paymentRouter);
-app.use("/api/orders", ordersRouter);
+app.use("/api/orders", authMiddleware, ordersRouter);
 
 /* ==================== Orders ==================== */
-app.get("/orders", authMiddleware, async (req, res, next) => {
-  try {
-    const userId = (req as any).user.userId;
-    const result = await dbClient
-      .select()
-      .from(orders)
-      .where(eq(orders.userID, userId));
-    res.json(result);
-  } catch (err) {
-    next(err);
-  }
-});
+// app.get("/orders", authMiddleware, async (req, res, next) => {
+//   try {
+//     const userId = (req as any).user.userId;
+//     const result = await dbClient
+//       .select()
+//       .from(orders)
+//       .where(eq(orders.userID, userId));
+//     res.json(result);
+//   } catch (err) {
+//     next(err);
+//   }
+// });
 
-app.get("/orders/:id", authMiddleware, async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const order = await dbClient
-      .select()
-      .from(orders)
-      .where(eq(orders.id, Number(id)));
+// app.get("/orders/:id", authMiddleware, async (req, res, next) => {
+//   try {
+//     const { id } = req.params;
+//     const order = await dbClient
+//       .select()
+//       .from(orders)
+//       .where(eq(orders.id, Number(id)));
 
-    if (order.length === 0) {
-      return res.status(404).json({ message: "Order not found" });
-    }
+//     if (order.length === 0) {
+//       return res.status(404).json({ message: "Order not found" });
+//     }
 
-    const items = await dbClient
-      .select()
-      .from(orderItems)
-      .where(eq(orderItems.orderId, Number(id)));
+//     const items = await dbClient
+//       .select()
+//       .from(orderItems)
+//       .where(eq(orderItems.orderId, Number(id)));
 
-    res.json({ ...order[0], items });
-  } catch (err) {
-    next(err);
-  }
-});
-/* ============== 404 ============== */
-app.use((req, res) => {
-  res.status(404).json({ message: "Not found" });
-});
+//     res.json({ ...order[0], items });
+//   } catch (err) {
+//     next(err);
+//   }
+// });
+// /* ============== 404 ============== */
+// app.use((req, res) => {
+//   res.status(404).json({ message: "Not found" });
+// });
 
 
 
