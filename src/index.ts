@@ -27,6 +27,8 @@ import cartRouter from "./routes/cart.ts"; // ✅ นำเข้า cartRouter 
 import paymentRouter from "./routes/payment.js";
 import ordersRouter from "./routes/orders.js";
 
+import adminOrdersRouter from "./routes/admin/orders.ts";
+
 import {
   users,
   products,
@@ -36,6 +38,8 @@ import {
   orders,
   orderItems,
 } from "@db/schema.js";
+import AdminProductRouter from "./routes/admin/products.ts";
+import usersRouter from "./routes/admin/user.ts";
 
 const debug = Debug("fs-backend");
 const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret";
@@ -43,6 +47,7 @@ const CORS_ORIGIN = process.env.CORS_ORIGIN || "http://localhost:5173"; // ✅ �
 
 /* ======================= Init ======================= */
 const app = express();
+
 
 app.set("etag", false); // ป้องกัน 304 ที่อาจกวน API
 
@@ -256,10 +261,8 @@ app.get("/cart", authMiddleware, async (req, res, next) => {
   }
 });
 
-
 // ตรงนี้ต้อง mount หลังจาก init express
 app.use("/api/categories", categoriesRouter);
-
 
 app.post("/cart/add", authMiddleware, async (req, res, next) => {
   try {
@@ -319,6 +322,12 @@ app.use("/api/cart", authMiddleware, cartRouter);
 app.use("/api/payment", authMiddleware, paymentRouter);
 app.use("/api/orders", authMiddleware, ordersRouter);
 
+app.use("/api/admin/orders", adminOrdersRouter);
+app.use("/api/admin/products", AdminProductRouter);
+
+app.use("/api/admin/users", usersRouter);
+
+
 /* ==================== Orders ==================== */
 // app.get("/orders", authMiddleware, async (req, res, next) => {
 //   try {
@@ -360,8 +369,6 @@ app.use("/api/orders", authMiddleware, ordersRouter);
 //   res.status(404).json({ message: "Not found" });
 // });
 
-
-
 /* ============== ⚠️ JSON Error Handler ============== */
 const jsonErrorHandler: ErrorRequestHandler = (err, req, res, next) => {
   debug(err?.message);
@@ -373,8 +380,6 @@ const jsonErrorHandler: ErrorRequestHandler = (err, req, res, next) => {
   });
 };
 app.use(jsonErrorHandler);
-
-
 
 /* =================== 🚀 Start =================== */
 const PORT = process.env.PORT || 3000;

@@ -36,37 +36,6 @@ async function uploadBufferToMinio(buf: Buffer, contentType?: string) {
 }
 
 /* ========================= CREATE ========================= */
-// productsRouter.post("/", upload.single("image"), async (req, res, next) => {
-//   try {
-//     const { pname, description, basePrice, pcId } = req.body;
-
-//     let imageUrl: string | null =
-//       (req.body.primaryImageUrl as string | undefined) || null;
-
-//     if (req.file) {
-//       imageUrl = await uploadBufferToMinio(req.file.buffer, req.file.mimetype);
-//     }
-
-//     const inserted = await dbClient
-//       .insert(products)
-//       .values({
-//         pname,
-//         description: description ?? null,
-//         basePrice: String(basePrice ?? "0.00"),
-//         pcId: pcId ? Number(pcId) : null,
-//         primaryImageUrl: imageUrl,
-//         images: imageUrl ? [imageUrl] : [],
-//       })
-//       .returning();
-
-//     res.status(201).json(inserted[0]);
-//   } catch (err) {
-//     next(err);
-//   }
-// });
-
-
-/* ========================= CREATE ========================= */
 productsRouter.post("/", upload.single("image"), async (req, res, next) => {
   try {
     const { pname, description, basePrice, pcId, primaryImageUrl, images } = req.body;
@@ -199,6 +168,8 @@ productsRouter.get("/:id", async (req, res, next) => {
   }
 });
 
+
+
 /* ================ RELATED (same category) =================
    GET /products/:id/related?limit=8
 */
@@ -228,129 +199,6 @@ productsRouter.get("/:id/related", async (req, res, next) => {
 });
 
 /* ========================= UPDATE ========================= */
-// productsRouter.put("/:id", upload.single("image"), async (req, res, next) => {
-//   try {
-//     const pid = Number(req.params.id);
-//     const ex = await dbClient.select().from(products).where(eq(products.pId, pid));
-//     if (!ex.length) return res.status(404).json({ message: "Product not found" });
-
-//     const { pname, description, basePrice, pcId } = req.body;
-
-//     let imageUrl: string | null =
-//       (req.body.primaryImageUrl as string | undefined) ?? ex[0].primaryImageUrl;
-
-//     if (req.file) {
-//       imageUrl = await uploadBufferToMinio(req.file.buffer, req.file.mimetype);
-//     }
-
-//     const updated = await dbClient
-//       .update(products)
-//       .set({
-//         pname: pname ?? ex[0].pname,
-//         description: description ?? ex[0].description,
-//         basePrice: String(basePrice ?? ex[0].basePrice),
-//         pcId: pcId ? Number(pcId) : ex[0].pcId,
-//         primaryImageUrl: imageUrl,
-//       })
-//       .where(eq(products.pId, pid))
-//       .returning();
-
-//     res.json(updated[0]);
-//   } catch (err) {
-//     next(err);
-//   }
-// });
-
-// productsRouter.put("/:id", upload.single("image"), async (req, res, next) => {
-//   try {
-//     const pid = Number(req.params.id);
-//     const ex = await dbClient
-//       .select()
-//       .from(products)
-//       .where(eq(products.pId, pid));
-//     if (!ex.length)
-//       return res.status(404).json({ message: "Product not found" });
-
-//     const {
-//       pname,
-//       description,
-//       basePrice,
-//       pcId,
-//       primaryImageUrl,
-//       images,
-//       shadeName,
-//       shadeCode,
-
-//       stockQty,
-//       imageUrl,
-//     } = req.body;
-
-//     // --- อัปเดตรูปถ้ามี ---
-//     let finalImageUrl = primaryImageUrl ?? ex[0].primaryImageUrl;
-//     if (req.file) {
-//       finalImageUrl = await uploadBufferToMinio(
-//         req.file.buffer,
-//         req.file.mimetype
-//       );
-//     }
-
-//     // --- update product ---
-//     const updatedProduct = await dbClient
-//       .update(products)
-//       .set({
-//         pname: pname ?? ex[0].pname,
-//         description: description ?? ex[0].description,
-//         basePrice: basePrice ? String(basePrice) : ex[0].basePrice,
-//         pcId: pcId ? Number(pcId) : ex[0].pcId,
-//         primaryImageUrl: finalImageUrl,
-//         images: images ? images : ex[0].images,
-//       })
-//       .where(eq(products.pId, pid))
-//       .returning();
-
-//     // --- update / insert variant ---
-//     if (shadeName || shadeCode || basePrice || stockQty || imageUrl) {
-//       const existingVariants = await dbClient
-//         .select()
-//         .from(productVariants)
-//         .where(eq(productVariants.pId, pid));
-
-//       if (existingVariants.length) {
-//         // update first variant
-//         await dbClient
-//           .update(productVariants)
-//           .set({
-//             shadeName: shadeName ?? existingVariants[0].shadeName,
-//             shadeCode: shadeCode ?? existingVariants[0].shadeCode,
-//             price: basePrice ? String(basePrice) : existingVariants[0].price,
-//             stockQty: stockQty
-//               ? Number(stockQty)
-//               : existingVariants[0].stockQty,
-//             imageUrl: imageUrl ?? existingVariants[0].imageUrl,
-//           })
-//           .where(eq(productVariants.id, existingVariants[0].id));
-//       } else {
-//         // insert new variant
-//         await dbClient.insert(productVariants).values({
-//           pId: pid,
-//           sku: `SKU-${pid}-${crypto.randomUUID().slice(0, 8)}`, // ✅ สร้างใหม่ทุก variant
-//           shadeName: shadeName ?? "",
-//           shadeCode: shadeCode ?? "",
-//           price: basePrice ? String(basePrice) : "0",
-//           stockQty: stockQty ? Number(stockQty) : 0,
-//           imageUrl: imageUrl ?? null,
-//         });
-//       }
-//     }
-
-//     res.json({
-//       message: "✅ Product updated",
-//       product: updatedProduct[0],
-//     });
-//   } catch (err) {
-//     next(err);
-//   }
-// });
 
 productsRouter.put("/:id", upload.single("image"), async (req, res, next) => {
   try {
@@ -406,7 +254,76 @@ productsRouter.put("/:id", upload.single("image"), async (req, res, next) => {
       }
     }
 
+    // --- DELETE variants ที่ถูกลบ ---
+const existingVariants = await dbClient
+  .select()
+  .from(productVariants)
+  .where(eq(productVariants.pId, pid));
+
+const incomingIds = variants.filter(v => v.id).map(v => v.id);
+const toDelete = existingVariants.filter(v => !incomingIds.includes(v.id));
+
+for (const v of toDelete) {
+  await dbClient.delete(productVariants).where(eq(productVariants.id, v.id));
+}
+
+// if (Array.isArray(variants) && variants.length > 0) {
+//   const existingVariants = await dbClient
+//     .select()
+//     .from(productVariants)
+//     .where(eq(productVariants.pId, pid));
+
+//   const incomingIds = variants.filter(v => v.id).map(v => v.id);
+//   const toDelete = existingVariants.filter(v => !incomingIds.includes(v.id));
+
+//   for (const v of toDelete) {
+//     await dbClient.delete(productVariants).where(eq(productVariants.id, v.id));
+//   }
+// }
+
+
+// --- UPDATE / INSERT remaining variants ---
+for (const v of variants) {
+  if (v.id) {
+    await dbClient.update(productVariants).set({
+      shadeName: v.shadeName ?? "",
+      shadeCode: v.shadeCode ?? "",
+      price: v.price ? String(v.price) : "0",
+      stockQty: v.stockQty ? Number(v.stockQty) : 0,
+      imageUrl: v.imageUrl ?? null,
+    }).where(eq(productVariants.id, v.id));
+  } else {
+    await dbClient.insert(productVariants).values({
+      pId: pid,
+      sku: crypto.randomUUID(),
+      shadeName: v.shadeName ?? "",
+      shadeCode: v.shadeCode ?? "",
+      price: v.price ? String(v.price) : "0",
+      stockQty: v.stockQty ? Number(v.stockQty) : 0,
+      imageUrl: v.imageUrl ?? null,
+    });
+  }
+}
+
     res.json({ message: "✅ Product updated", product: updatedProduct[0] });
+  } catch (err) {
+    next(err);
+  }
+});
+
+
+// ✅ เสริมใน productsRouter
+productsRouter.put("/:id/category", async (req, res, next) => {
+  try {
+    const pid = Number(req.params.id);
+    const { pcId } = req.body;
+    if (!pcId) return res.status(400).json({ message: "Missing category id" });
+
+    await dbClient.update(products)
+      .set({ pcId })
+      .where(eq(products.pId, pid));
+
+    res.json({ message: "✅ Category updated" });
   } catch (err) {
     next(err);
   }
