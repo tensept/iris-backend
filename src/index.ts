@@ -27,6 +27,8 @@ import cartRouter from "./routes/cart.ts"; // ✅ นำเข้า cartRouter 
 import paymentRouter from "./routes/payment.ts";
 import ordersRouter from "./routes/orders.ts";
 
+import adminOrdersRouter from "./routes/admin/orders.ts";
+
 import {
   users,
   products,
@@ -36,6 +38,8 @@ import {
   orders,
   orderItems,
 } from "@db/schema.js";
+import AdminProductRouter from "./routes/admin/products.ts";
+import usersRouter from "./routes/admin/user.ts";
 
 const debug = Debug("fs-backend");
 const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret";
