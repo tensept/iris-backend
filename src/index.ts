@@ -24,8 +24,8 @@ import { productsRouter } from "./routes/products.ts";
 import { shopsRouter } from "./routes/shops.ts";
 import categoriesRouter from "./routes/categories.ts";
 import cartRouter from "./routes/cart.ts"; // ✅ นำเข้า cartRouter (default export)
-import paymentRouter from "./routes/payment.js";
-import ordersRouter from "./routes/orders.js";
+import paymentRouter from "./routes/payment.ts";
+import ordersRouter from "./routes/orders.ts";
 
 import {
   users,
@@ -43,11 +43,25 @@ const CORS_ORIGIN = process.env.CORS_ORIGIN || "http://localhost:5173"; // ✅ �
 
 /* ======================= Init ======================= */
 const app = express();
-
-app.set("etag", false); // ป้องกัน 304 ที่อาจกวน API
+const SCB_CALLBACK_PATH = "/api/payment/scb/callback";
 
 // Logging มาก่อนเพื่อเห็นทุก request
 app.use(morgan("dev"));
+
+// เก็บ raw body เฉพาะ callback
+app.use(SCB_CALLBACK_PATH, express.raw({ type: "*/*" }), (req, _res, next) => {
+  (req as any).rawBody = Buffer.isBuffer(req.body)
+    ? req.body.toString("utf8")
+    : "";
+  try {
+    req.body = (req as any).rawBody ? JSON.parse((req as any).rawBody) : {};
+  } catch {
+    req.body = {};
+  }
+  next();
+});
+
+app.set("etag", false); // ป้องกัน 304 ที่อาจกวน API
 
 // CORS ต้องมาก่อน routers ทั้งหมด
 app.use(
@@ -256,10 +270,8 @@ app.get("/cart", authMiddleware, async (req, res, next) => {
   }
 });
 
-
 // ตรงนี้ต้อง mount หลังจาก init express
 app.use("/api/categories", categoriesRouter);
-
 
 app.post("/cart/add", authMiddleware, async (req, res, next) => {
   try {
@@ -316,51 +328,18 @@ app.post("/cart/add", authMiddleware, async (req, res, next) => {
 });
 // 🛒 Cart (ต้องล็อกอิน)
 app.use("/api/cart", authMiddleware, cartRouter);
-app.use("/api/payment", authMiddleware, paymentRouter);
+app.use(
+  "/api/payment",
+  (req, res, next) => {
+    if (req.path === "/scb/callback") {
+      // ไม่ต้อง auth สำหรับ callback จาก SCB
+      return next();
+    }
+    return authMiddleware(req, res, next);
+  },
+  paymentRouter
+);
 app.use("/api/orders", authMiddleware, ordersRouter);
-
-/* ==================== Orders ==================== */
-// app.get("/orders", authMiddleware, async (req, res, next) => {
-//   try {
-//     const userId = (req as any).user.userId;
-//     const result = await dbClient
-//       .select()
-//       .from(orders)
-//       .where(eq(orders.userID, userId));
-//     res.json(result);
-//   } catch (err) {
-//     next(err);
-//   }
-// });
-
-// app.get("/orders/:id", authMiddleware, async (req, res, next) => {
-//   try {
-//     const { id } = req.params;
-//     const order = await dbClient
-//       .select()
-//       .from(orders)
-//       .where(eq(orders.id, Number(id)));
-
-//     if (order.length === 0) {
-//       return res.status(404).json({ message: "Order not found" });
-//     }
-
-//     const items = await dbClient
-//       .select()
-//       .from(orderItems)
-//       .where(eq(orderItems.orderId, Number(id)));
-
-//     res.json({ ...order[0], items });
-//   } catch (err) {
-//     next(err);
-//   }
-// });
-// /* ============== 404 ============== */
-// app.use((req, res) => {
-//   res.status(404).json({ message: "Not found" });
-// });
-
-
 
 /* ============== ⚠️ JSON Error Handler ============== */
 const jsonErrorHandler: ErrorRequestHandler = (err, req, res, next) => {
@@ -373,8 +352,6 @@ const jsonErrorHandler: ErrorRequestHandler = (err, req, res, next) => {
   });
 };
 app.use(jsonErrorHandler);
-
-
 
 /* =================== 🚀 Start =================== */
 const PORT = process.env.PORT || 3000;
